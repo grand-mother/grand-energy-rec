@@ -178,7 +178,7 @@ class EnergyRec:
             EnergyRec.Antenna.traces.       
         """
         if not Path(self.sim_dir).is_dir():
-            print("ERROR: directory ",sim_dir," not found!")
+            print("ERROR: directory ",self.sim_dir," not found!")
             raise SystemExit("Stop right there!")
     
         ant_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'_coreas/raw_ant'+str(antenna)+'.dat'
@@ -628,8 +628,8 @@ class EnergyRec:
             #print(thetaB*180/np.pi,np.cos(phiB))
             eB = np.array([np.sin(thetaB)*np.cos(phiB),np.sin(thetaB)*np.sin(phiB),np.cos(thetaB)])
             #print(eB)
-            thetaCR = (thetaCR+np.pi)/180*np.pi # The Corsika convention is angle relative to the south direction
-            phiCR = phiCR/180*np.pi
+            thetaCR = (thetaCR)/180*np.pi 
+            phiCR = (phiCR+180)/180*np.pi # The Corsika convention is angle relative to the south direction
             ev = np.array([np.sin(thetaCR)*np.cos(phiCR),np.sin(thetaCR)*np.sin(phiCR),np.cos(thetaCR)])
             ev = -ev
         
@@ -1014,10 +1014,10 @@ class EnergyRec:
                     E_vvB2 = E_vvB2 + (self.hilbert_pol[:,pol+1]*np.dot(e_pol[pol+1],evvB))**2
 
                 signal_evB = np.sum(np.abs(E_vB2)[(tt>=t1) & (tt<=t2)])*delta_tt
-                self.fluence_evB = (signal_evB-bkg)*epsilon0*c*Joule_to_eV
+                self.fluence_evB = (signal_evB-(bkg/2))*epsilon0*c*Joule_to_eV
                 signal_evvB = np.sum(np.abs(E_vvB2)[(tt>=t1) & (tt<=t2)])*delta_tt
-                self.fluence_evvB = (signal_evvB-bkg)*epsilon0*c*Joule_to_eV
-            
+                self.fluence_evvB = (signal_evvB-(bkg/2))*epsilon0*c*Joule_to_eV
+                        
         def offset_and_cut(self):
             """
             Performs cuts and offsets the traces.
