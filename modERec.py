@@ -33,6 +33,8 @@ from scipy import stats
 from pathlib import Path
 import math
 
+from grand.simulation import CoreasShower
+
 class EnergyRec:
     """
     A class for the energy reconstruction.
@@ -75,6 +77,8 @@ class EnergyRec:
     r_ant = None
     ## The bestfit values of the parameters
     bestfit = None
+    ## The shower imported using the standard grand package
+    GRANDshower = None
 
     def __init__(self,sim_dir,sim_number):
         """
@@ -90,6 +94,12 @@ class EnergyRec:
         self.antenna = self.Antenna(self.nu_low,self.nu_high,self.SNR_thres)
         self.shower = self.Shower(self.sim_dir,self.sim_number)
         self.mcmc = self.MCMC()
+
+        if not Path(self.sim_dir).is_dir():
+            print("ERROR: directory ",self.sim_dir," not found!")
+            raise SystemExit("Stop right there!")
+
+        self.GRANDshower = CoreasShower.load(self.sim_dir)
 
         print("* EnergyRec instance starting values summary:")
         print("--> bool_plot = ",self.bool_plot)
@@ -111,20 +121,6 @@ class EnergyRec:
             self: An instance of EnergyRec.
             
         """
-        if not Path(self.sim_dir).is_dir():
-            print("ERROR: directory ",self.sim_dir," not found!")
-            raise SystemExit("Stop right there!")
-        
-        ant_path = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'_coreas/'
-        if not Path(ant_path).is_dir():
-            print("ERROR: directory ",ant_path," not found!")
-            raise SystemExit("Stop right there!")
-        
-        list_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'.list'
-        if not Path(list_file).is_file():
-            print("ERROR: file ",list_file," not found!")
-            raise SystemExit("Stop right there!")
-            
         simInput_file = self.sim_dir+'/RUN'+str(self.sim_number).zfill(6)+'.inp'
         if not Path(simInput_file).is_file():
             print("ERROR: file ",simInput_file," not found!")
@@ -132,22 +128,21 @@ class EnergyRec:
         
         fp = open(simInput_file,'r')
         for line in fp:
-            if 'THETAP' in line:
-                thetaCR = float(line.split()[1])
-            if 'PHIP' in line:
-                phiCR = float(line.split()[1])
-            if 'ERANGE' in line:
-                E = str(line.split()[1])
             if 'MAGNET' in line:
                 Bx = float(line.split()[1])   
                 Bz = float(line.split()[2])
                 thetaB = np.arctan2(Bz,Bx)
                 phiB = 0
+
+        thetaCR = self.GRANDshower.zenith
+        phiCR = self.GRANDshower.azimuth
+        E = self.GRANDshower.energy
+
         fp.close()
         print("* Simulation summary:")
-        print("--> thetaCR = ",thetaCR," deg")
-        print("--> phiCR = ",phiCR," deg")
-        print("--> E = ",E," GeV")
+        print("--> thetaCR = ",thetaCR)
+        print("--> phiCR = ",phiCR)
+        print("--> E = ",E)
         
         simOutput_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'.reas'
         if not Path(simOutput_file).is_file():
@@ -166,29 +161,55 @@ class EnergyRec:
         print("--> Core position = ", CoreX," north ; ",CoreY," west.")
         print("\n")
         
-    def init_antenna(self,antenna = 247):
+    def inspect_antenna(self,id):
         """
-        Initializes tha antenna and reads the traces for a given antenna.   
+        Plots the traces for a given antenna.   
 
         Args:
             self: An instance of EnergyRec.Antenna.
-            antenna: The number of the antenna to be read.
+            id: The antenna id.  
 
         Fills:
-            EnergyRec.Antenna.traces.       
-        """
-        if not Path(self.sim_dir).is_dir():
-            print("ERROR: directory ",sim_dir," not found!")
-            raise SystemExit("Stop right there!")
+            EnergyRec.Antenna.traces.
     
-        ant_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'_coreas/raw_ant'+str(antenna)+'.dat'
-        if not Path(ant_file).is_file():
-            print("ERROR: file ",ant_file," not found!")
-            raise SystemExit("Stop right there!")
+        """
+                
+        if(id<len(self.GRANDshower.fields)):
+            Ex = self.GRANDshower.fields[id].electric.E.x.to("V/m")
+            Ey = self.GRANDshower.fields[id].electric.E.y.to("V/m")
+            Ez = self.GRANDshower.fields[id].electric.E.z.to("V/m")
+            time = self.GRANDshower.fields[id].electric.t.to("ns")
 
-        self.antenna.read_traces(ant_file)
+        global_peak = np.max(np.abs([Ex,Ey,Ez]))
+        peak_index = np.where(np.abs([Ex,Ey,Ez])==global_peak)[0][0]
+        peak_time = time[peak_index]
+            
+        if(self.bool_plot):
+            fig = plt.figure(figsize=(15,3))
+            fig.suptitle('Traces', fontsize=16,y=1)
+            plt.subplot(131)
+            plt.plot(time,Ex,'r')
+            plt.ylabel("signal in V/m")
+            ax = plt.gca()
+            ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
+    
         
-    def process_antenna(self):
+            plt.subplot(132)
+            plt.plot(time,Ey,'b')
+            plt.xlabel("time in ns")
+            ax = plt.gca()
+            ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
+    
+            plt.subplot(133)
+            plt.plot(time,Ez,'k')
+            ax = plt.gca()
+            ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
+            
+            plt.show()
+        
+    #self.traces = traces
+    
+    def process_antenna(self, id):
         """
         Process a given antenna for inspection.
         
@@ -200,9 +221,15 @@ class EnergyRec:
             self: An instance of EnergyRec.Antenna.
         
         """
-        if self.antenna.traces is None:
-            print("Antenna has to be initialized!")
-            exit
+
+        if(id<len(self.GRANDshower.fields)):
+            time = self.GRANDshower.fields[id].electric.t.to("ns").value
+            Ex = self.GRANDshower.fields[id].electric.E.x.to("V/m").value
+            Ey = self.GRANDshower.fields[id].electric.E.y.to("V/m").value
+            Ez = self.GRANDshower.fields[id].electric.E.z.to("V/m").value
+        
+        self.antenna.traces  = np.c_[time,Ex,Ey,Ez]
+            
         self.antenna.offset_and_cut()
         self.antenna.fft_filter()
         self.antenna.trace_recover()
@@ -712,52 +739,7 @@ class EnergyRec:
             self.bool_cut = 1
             self.fluence = 0
 
-        def read_traces(self,ant_file):
-            """
-            Reads the traces for a given antenna.   
-
-            Args:
-                self: An instance of EnergyRec.Antenna.
-                ant_file: The file with the traces.  
-
-            Fills:
-                EnergyRec.Antenna.traces.
-       
-            """
-            temp_file = open(ant_file,'r')
-            traces = np.loadtxt(temp_file)
-            temp_file.close()
-            traces[:,0]=traces[:,0]*1e9 # convert from seconds to ns
-            traces[:,1:4]=traces[:,1:4]*2.99792458*1e4 # convert from statV/cm to V/m
-            
-            global_peak = np.max(np.abs(traces[:,1:4]))
-            peak_index = np.where(np.abs(traces[:,1:4])==global_peak)[0][0]
-            peak_time = traces[:,0][peak_index]
-                
-            if(self.bool_plot):
-                fig = plt.figure(figsize=(15,3))
-                fig.suptitle('Traces', fontsize=16,y=1)
-                plt.subplot(131)
-                plt.plot(traces[:,0],traces[:,1],'r')
-                plt.ylabel("signal in V/m")
-                ax = plt.gca()
-                ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
         
-            
-                plt.subplot(132)
-                plt.plot(traces[:,0],traces[:,2],'b')
-                plt.xlabel("time in ns")
-                ax = plt.gca()
-                ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
-        
-                plt.subplot(133)
-                plt.plot(traces[:,0],traces[:,3],'k')
-                ax = plt.gca()
-                ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
-                
-                plt.show()
-            
-            self.traces = traces
 
         def fft_filter(self, col='r'):
             """
