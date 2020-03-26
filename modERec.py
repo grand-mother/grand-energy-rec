@@ -466,7 +466,7 @@ class EnergyRec:
         traces_proj = {}
 
         for key, value in self.GRANDshower.fields.items():
-            r_ant = value.electric.r - self.GRANDshower.core
+            r_ant = value.electric.r #- self.GRANDshower.core
             position = self.GRANDshower.frame._replicate(r_ant, copy=False)
             antpos_proj[key] = position.transform_to(shower_frame).cartesian.xyz
 
