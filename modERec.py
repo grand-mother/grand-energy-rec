@@ -34,6 +34,9 @@ from pathlib import Path
 import math
 
 from grand.simulation import CoreasShower
+import astropy.units as u
+from astropy.coordinates import CartesianRepresentation
+from grand import Rotation
 
 class EnergyRec:
     """
@@ -121,46 +124,66 @@ class EnergyRec:
             self: An instance of EnergyRec.
             
         """
-        simInput_file = self.sim_dir+'/RUN'+str(self.sim_number).zfill(6)+'.inp'
-        if not Path(simInput_file).is_file():
-            print("ERROR: file ",simInput_file," not found!")
-            raise SystemExit("Stop right there!")
         
-        fp = open(simInput_file,'r')
-        for line in fp:
-            if 'MAGNET' in line:
-                Bx = float(line.split()[1])   
-                Bz = float(line.split()[2])
-                thetaB = np.arctan2(Bz,Bx)
-                phiB = 0
 
         thetaCR = self.GRANDshower.zenith
         phiCR = self.GRANDshower.azimuth
         E = self.GRANDshower.energy
+        Core = self.GRANDshower.core
+        B = self.GRANDshower.geomagnet
 
-        fp.close()
         print("* Simulation summary:")
         print("--> thetaCR = ",thetaCR)
         print("--> phiCR = ",phiCR)
         print("--> E = ",E)
         
-        simOutput_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'.reas'
-        if not Path(simOutput_file).is_file():
-            print("ERROR: file ",simOutput_file," not found!")
-            raise SystemExit("Stop right there!")
+        print("--> Core position = ", Core)
+
+        print("--> Geomagnetic field = ", B)
+
+    def shower_plane(self):
+            """
+            Evaluates the shower plane and reads the theta from the simulation.
+
+            Args:
+                self: An instance of EnergyRec.Shower.
+
+            Fills:
+                EnergyRec.Shower.ev, EnergyRec.Shower.eB, EnergyRec.Shower.evB, EnergyRec.Shower.evvB and EnergyRec.Shower.thetaCR (as integer in deg).
+            
+            """
+            
+            eB = (self.GRANDshower.geomagnet/self.GRANDshower.geomagnet.norm())
+            ev = self.GRANDshower.maximum - self.GRANDshower.core
+            ev /= -ev.norm()
         
-        fp = open(simOutput_file,'r')
-        for line in fp:
-            if 'CoreCoordinateNorth' in line:
-                CoreX = float(line.split()[2])/100
-            if 'CoreCoordinateWest' in line:
-                CoreY = float(line.split()[2])/100
-        fp.close()
-        self.shower.CoreX = CoreX
-        self.shower.CoreY = CoreY
-        print("--> Core position = ", CoreX," north ; ",CoreY," west.")
-        print("\n")
-        
+            evB = ev.cross(eB)
+            evB /= evB.norm()
+            evvB = ev.cross(evB)
+            evvB /= evvB.norm()
+            
+            if(self.bool_plot):
+                fig = plt.figure(figsize=(10,7))
+                ax = fig.add_subplot(111, projection='3d')
+                ax.quiver(0,0,0, ev.x, ev.y, ev.z,color='r', label=r'$\vec{v}$')
+                ax.quiver(0,0,0, eB.x, eB.y, eB.z,color='b', label=r'$\vec{B}$')
+                ax.quiver(0,0,0, evB.x, evB.y, evB.z,color='k', label=r'$\vec{v}\times\vec{B}$')
+                ax.quiver(0,0,0, evvB.x, evvB.y, evvB.z,color='gray', label=r'$\vec{v}\times\vec{v}\times\vec{B}$')
+                ax.set_xlim([-0.9,0.9])
+                ax.set_ylim([-0.9,0.9])
+                ax.set_zlim([-0.9,0.9])
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+                ax.set_zlabel('z')
+                ax.legend()
+
+            self.shower.ev = ev.xyz
+            self.shower.eB = eB.xyz
+            self.shower.evB = evB.xyz
+            self.shower.evvB = evvB.xyz
+            self.shower.thetaCR = self.GRANDshower.zenith
+            self.shower.phiCR = self.GRANDshower.azimuth
+
     def inspect_antenna(self,id):
         """
         Plots the traces for a given antenna.   
@@ -229,12 +252,25 @@ class EnergyRec:
             Ez = self.GRANDshower.fields[id].electric.E.z.to("V/m").value
         
         self.antenna.traces  = np.c_[time,Ex,Ey,Ez]
+
+        # Check if peak is within the threshold range
+        peak = np.max(np.abs(self.antenna.traces[:,1:4]))
+        if(peak < self.thres_low or peak > self.thres_high):
+            self.antenna.fluence = -1
+            return
             
         self.antenna.offset_and_cut()
         self.antenna.fft_filter()
         self.antenna.trace_recover()
-        self.antenna.hilbert_envelope()
-        self.antenna.compute_fluence(None,None)
+
+        # Check if peak is within the threshold range after offset, cut and trace recover.
+        if(np.max(np.abs(self.antenna.traces[:,1:4]))<self.thres_low):
+            self.antenna.fluence = -1
+            return
+        else:
+            self.antenna.hilbert_envelope()
+            self.antenna.compute_fluence(None,None)
+                
     
     def Eval_fluences(self):
         """
@@ -249,45 +285,22 @@ class EnergyRec:
             EnergyRec.fluence_arr.
         
         """
-        my_dir = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'_coreas/'
-        if not Path(my_dir).is_dir():
-            print("ERROR: directory ",my_dir," not found!")
-            raise SystemExit("Stop right there!")
-            
-        output_list = glob.glob(my_dir+'raw_ant*.dat')
+
+        n_ant = len(self.GRANDshower.fields)
+        fluence_arr = np.zeros(n_ant)
     
-        nbe = np.zeros(len(output_list))
-        fluence_arr = np.zeros(len(output_list))
-    
-        step = int(len(output_list)/10)
+        step = int(n_ant/10)
         counter = 0
     
         print("* Evaluating the fluences:")
         print("--> 0 % complete;")
-        for output in output_list: # loop over all antennas
+        for ant in range(n_ant):
             #Read traces or voltages
-            index = int(output.split('/raw_ant')[-1].split('.dat')[0])
-            if ((counter+1)%step == 0):
-                print("-->",int((counter+1)/(10*step)*100),"% complete;")
+            if ((ant+1)%step == 0):
+                print("-->",int((ant+1)/(10*step)*100),"% complete;")
 
-            counter = counter+1
-            self.init_antenna(index)
-            self.antenna.offset_and_cut()
-            peak = np.max(np.abs(self.antenna.traces[:,1:4]))
-            if(peak < self.thres_low or peak > self.thres_high):
-                fluence_arr[index] = -1
-                continue
-    
-            self.antenna.fft_filter()
-            self.antenna.trace_recover()
-    
-            if(np.max(np.abs(self.antenna.traces[:,1:4]))<self.thres_low):
-                fluence_arr[index] = -1
-                continue
-            else:
-                self.antenna.hilbert_envelope()
-                self.antenna.compute_fluence(None,None)
-                fluence_arr[index] = self.antenna.fluence
+            self.process_antenna(ant)
+            fluence_arr[ant] = self.antenna.fluence
        
         print("\n")
         self.fluence_arr = fluence_arr
@@ -388,46 +401,26 @@ class EnergyRec:
             EnergyRec.r_ant.
         
         """
-        list_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'.list'
-        if not Path(list_file).is_file():
-            print("ERROR: file ",list_file," not found!")
-            raise SystemExit("Stop right there!")
-        
-        
-        my_dir = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'_coreas/'
-        if not Path(my_dir).is_dir():
-            print("ERROR: directory ",my_dir," not found!")
-            raise SystemExit("Stop right there!")
-            
-        output_list = glob.glob(my_dir+'raw_ant*.dat')
-        
-        x_ant = np.zeros(len(output_list))
-        y_ant = np.zeros(len(output_list))
-        z_ant = np.zeros(len(output_list))
-        ant = 0
-        
-        
-        fp = open(list_file,'r')
-        for line in fp:
-            x_ant[ant] = float(line.split()[2])/100 # coversion from cm to m
-            y_ant[ant] = float(line.split()[3])/100 # conversion from cm to m
-            z_ant[ant] = float(line.split()[4])/100 # conversion from cm to m
-            ant = ant+1
-        fp.close()
+ 
+        n_ant = len(self.GRANDshower.fields)
+
+        r_ant = np.zeros((n_ant,3))
+        for key, value in self.GRANDshower.fields.items():
+            r_ant[key]=value.electric.r.xyz.value
     
     
         if(self.bool_plot):
             fig= plt.figure(figsize=(10,7))
             ax = plt.gca()
     
-            plt.scatter(x_ant[self.fluence_arr>=0], y_ant[self.fluence_arr>=0], c=self.fluence_arr[self.fluence_arr>=0], cmap='viridis')
+            plt.scatter(r_ant[:,0][self.fluence_arr>=0], r_ant[:,1][self.fluence_arr>=0], c=self.fluence_arr[self.fluence_arr>=0], cmap='viridis')
     
             plt.xlabel("x (in m)")
             plt.ylabel("y (in m)")
             plt.colorbar().ax.set_ylabel(r"Energy fluence (eV/m$^2$)")
             plt.show()
             
-        self.r_ant = np.c_[x_ant, y_ant, z_ant]
+        self.r_ant = r_ant
 
     
     def signal_output(self):
@@ -446,31 +439,48 @@ class EnergyRec:
             print(str(entry)[1:-1],file=fluence_file)
         fluence_file.close()
 
-    def antenna_projection(self):
+    def shower_projection(self):
         """
-        Projects the antenna positions into the shower plane.
+        Projects the antenna positions and traces into the shower plane.
 
         Args:
             self: An instance of EnergyRec.
 
         Fills:
-            EnergyRec.Shower.r_proj.
+            EnergyRec.Shower.core_proj;
+            EnergyRec.Shower.r_proj;
+            EnergyRec.Shower.traces_proj.
         
         """
         #The antenna projection
-        n_ant = self.r_ant[:,0].size
-        antpos_proj = np.zeros((n_ant,2))
-        i=0
-        for ant in range(n_ant):
-            my_r_ant = [self.r_ant[ant,0],self.r_ant[ant,1],self.r_ant[ant,2]-np.mean(self.r_ant[:,2])]
-            antpos_proj[i,0] = np.dot(my_r_ant,self.shower.evB)
-            antpos_proj[i,1] = np.dot(my_r_ant,self.shower.evvB)
-            i = i+1
-        my_rCore = [self.shower.CoreX,self.shower.CoreY,0]
+        n_ant = len(self.GRANDshower.fields)
+        antpos_proj = np.zeros((n_ant,3))
 
-        self.shower.r_Core_proj = np.array([np.dot(my_rCore,self.shower.evB),np.dot(my_rCore,self.shower.evvB)])
-    
+        self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)
+
+        if self.shower.ev is None:
+            self.shower_plane()
+
+        r = Rotation.from_matrix(np.matrix([self.shower.evB,self.shower.evvB,self.shower.ev]).T)
+        shower_frame = self.GRANDshower.frame.rotated(r)
+        traces_proj = {}
+
+        for key, value in self.GRANDshower.fields.items():
+            r_ant = value.electric.r - self.GRANDshower.core
+            position = self.GRANDshower.frame._replicate(r_ant, copy=False)
+            antpos_proj[key] = position.transform_to(shower_frame).cartesian.xyz
+
+            E = self.GRANDshower.fields[key].electric.E
+            initial_trace = self.GRANDshower.frame._replicate(E, copy=False)
+            traces_proj[key] = initial_trace.transform_to(shower_frame)
+
+        core = self.GRANDshower.core
+        position = self.GRANDshower.frame._replicate(core, copy=False)
+        r_Core_proj = position.transform_to(shower_frame).cartesian.xyz
+
+        self.shower.r_Core_proj = r_Core_proj.value
         self.shower.r_proj = antpos_proj
+        self.shower.traces_proj = traces_proj
 
     def model_fit(self,filename=""):
         """
@@ -491,9 +501,9 @@ class EnergyRec:
 
         print("* Model fit:")
         if(filename==""):
-            self.read_antpos();
-            self.shower.shower_plane();
-            self.antenna_projection();            
+            self.read_antpos()
+            self.shower_plane();
+            self.shower_projection();            
 
             # Early-late effect
             if self.bool_EarlyLate:
@@ -541,30 +551,19 @@ class EnergyRec:
             EnergyRec.Shower.R0_R.
 
         """
-        simInput_file = self.sim_dir+'/SIM'+str(self.sim_number).zfill(6)+'.reas'
-        if not Path(simInput_file).is_file():
-            print("ERROR: file ",simInput_file," not found!")
-            raise SystemExit("Stop right there!")
-            
-        fp = open(simInput_file,'r')
-        for line in fp:
-            if 'DistanceOfShowerMaximum' in line:
-                d_Xmax = float(line.split()[2])/100 # from cm to m
-            if 'CoreCoordinateNorth' in line:
-                CoreX = float(line.split()[2])/100
-            if 'CoreCoordinateWest' in line:
-                CoreY = float(line.split()[2])/100
-        fp.close()
-        
-        rCore = np.array([CoreX,CoreY,0])
-        rXmax = -self.shower.ev*d_Xmax - rCore
+        rCore = self.GRANDshower.core.xyz.value
+        rXmax = self.GRANDshower.maximum.xyz.value - rCore
 
-        r_ant = self.r_ant - rCore - np.array([0,0,np.mean(self.r_ant[:,2])])
+        n_ant = len(self.GRANDshower.fields)
+        r_ant = np.zeros((n_ant,3))
+
+        for key, value in self.GRANDshower.fields.items():
+            r_ant[key] = value.electric.r.xyz.value - rCore
         
         R = np.linalg.norm(r_ant - rXmax,axis=1)
-        R_0 = d_Xmax
+        R_0 = np.linalg.norm(rXmax)
         self.shower.R0_R = R_0/R
-        self.shower.d_Xmax = d_Xmax
+        self.shower.d_Xmax = np.linalg.norm(rXmax)
 
 
     class Shower:
@@ -617,76 +616,6 @@ class EnergyRec:
             self.sim_dir = sim_dir
             self.sim_number = sim_number
 
-        def shower_plane(self):
-            """
-            Evaluates the shower plane and reads the theta from the simulation.
-
-            Args:
-                self: An instance of EnergyRec.Shower.
-
-            Fills:
-                EnergyRec.Shower.ev, EnergyRec.Shower.eB, EnergyRec.Shower.evB, EnergyRec.Shower.evvB and EnergyRec.Shower.thetaCR (as integer in deg).
-            
-            """
-            simInput_file = self.sim_dir+'/RUN'+str(self.sim_number).zfill(6)+'.inp'
-            if not Path(simInput_file).is_file():
-                print("ERROR: file ",simInput_file," not found!")
-                raise SystemExit("Stop right there!")
-            
-            fp = open(simInput_file,'r')
-            for line in fp:
-                if 'THETAP' in line:
-                    thetaCR = float(line.split()[1])
-                if 'PHIP' in line:
-                    phiCR = float(line.split()[1])
-                if 'ERANGE' in line:
-                    self.ECR = str(line.split()[1])
-                if 'MAGNET' in line:
-                    Bx = float(line.split()[1])   
-                    Bz = float(line.split()[2])
-                    thetaB = np.arctan2(Bz,Bx)
-                    phiB = 0
-            fp.close()
-            
-            #print(phiB,thetaB,phiCR,thetaCR)    
-            phiB = (phiB)/180*np.pi
-            #thetaB = (90-thetaB)/180*np.pi
-            thetaB = (np.pi/2-thetaB)
-            #print(thetaB*180/np.pi,np.cos(phiB))
-            eB = np.array([np.sin(thetaB)*np.cos(phiB),np.sin(thetaB)*np.sin(phiB),np.cos(thetaB)])
-            #print(eB)
-            thetaCR = (thetaCR+np.pi)/180*np.pi # The Corsika convention is angle relative to the south direction
-            phiCR = phiCR/180*np.pi
-            ev = np.array([np.sin(thetaCR)*np.cos(phiCR),np.sin(thetaCR)*np.sin(phiCR),np.cos(thetaCR)])
-            ev = -ev
-        
-            evB = np.cross(ev,eB)
-            evB = evB/np.linalg.norm(evB)
-        
-            evvB = np.cross(ev,evB)
-            evvB = evvB/np.linalg.norm(evvB)
-            
-            if(self.bool_plot):
-                fig = plt.figure(figsize=(10,7))
-                ax = fig.add_subplot(111, projection='3d')
-                ax.quiver(0,0,0, ev[0], ev[1], ev[2],color='r', label=r'$\vec{v}$')
-                ax.quiver(0,0,0, eB[0], eB[1], eB[2],color='b', label=r'$\vec{B}$')
-                ax.quiver(0,0,0, evB[0], evB[1], evB[2],color='k', label=r'$\vec{v}\times\vec{B}$')
-                ax.quiver(0,0,0, evvB[0], evvB[1], evvB[2],color='gray', label=r'$\vec{v}\times\vec{v}\times\vec{B}$')
-                ax.set_xlim([-0.9,0.9])
-                ax.set_ylim([-0.9,0.9])
-                ax.set_zlim([-0.9,0.9])
-                ax.set_xlabel('x')
-                ax.set_ylabel('y')
-                ax.set_zlabel('z')
-                ax.legend()
-
-            self.ev = ev
-            self.eB = eB
-            self.evB = evB
-            self.evvB = evvB
-            self.thetaCR = thetaCR*180/np.pi
-            self.phiCR = phiCR*180/np.pi
 
     class Antenna:
         """
@@ -1342,7 +1271,7 @@ class EnergyRec:
             """
             A = par[0]
             sigma = par[1]
-            rcore = EnergyRec.Shower.r_Core_proj
+            rcore = EnergyRec.Shower.r_Core_proj[0:2]
         
             C0 = par[2]
             C1 = par[3]
@@ -1480,9 +1409,9 @@ class EnergyRec:
             
             A = self.bestfit[0]
             sigma = self.bestfit[1]
-            rcore = self.shower.r_Core_proj
-            sin2Alpha = 1-np.dot(self.shower.ev,self.shower.eB)**2.
-            
+            rcore = self.shower.r_Core_proj[0:2]
+            sin2Alpha = (1-np.dot(self.shower.ev,self.shower.eB)**2.).value
+        
             Cs = np.array([self.bestfit[2],self.bestfit[3],self.bestfit[4],self.bestfit[5],self.bestfit[6]])
             Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
             print('S_radio=',round(Sradio,2))
