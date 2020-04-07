@@ -377,6 +377,36 @@ class EnergyRec:
         self.fluence_evB = fluence_evB
         self.fluence_evvB = fluence_evvB
 
+    def Eval_par_fluences(self,par):
+        """
+        Evaluates the fluence par for a give set of parameters
+        
+        Args:
+            self: An instance of EnergyRec
+            par: The paramters of the a_ratio parametrization.
+
+        Retuns:
+            fluence_par: Parametrized fluence array.
+        """
+
+        if self.fluence_evB is None:
+            self.Eval_geo_ce_fluences()
+
+        n_ant = len(self.GRANDshower.fields)
+        fluence_par = np.zeros(n_ant)
+        eB = self.shower.eB
+        alpha = np.arccos(np.dot(self.shower.ev,eB))
+        distance = np.linalg.norm((self.shower.r_proj - self.shower.r_Core_proj)[:,0:2],axis=1)
+        d_Xmax = np.linalg.norm((self.GRANDshower.core - self.GRANDshower.maximum).xyz.value)
+        rho_Xmax = self.SymFit.rho(d_Xmax,-self.shower.ev)
+
+        for ant in range(n_ant):
+            r_plane = self.shower.r_proj[ant][0:2]
+            phi = np.arccos(np.dot(r_plane,np.array([1,0]))/np.linalg.norm(r_plane))
+            fluence_par[ant] = EnergyRec.SymFit.f_par_geo(self.fluence_evB[ant],phi,alpha,distance[ant],d_Xmax,par,rho_Xmax)
+
+        return fluence_par
+
     def read_antpos(self):
         """
         Reads the position of the antennas.
@@ -1577,8 +1607,93 @@ class EnergyRec:
                 bestfit: The bestfit parameters array.
             """
             par = [0.373, 762.6, 0.1490, 0.189]
-            res = sp.optimize.minimize(EnergyRec.SymFit.a_ratio_chi2,par,args=(fluence_geo, fluence_ce,alpha, r, d_Xmax, rho_max))
+            res = sp.optimize.minimize(EnergyRec.SymFit.a_ratio_chi2,par,args=(fluence_geo, fluence_ce,alpha, r, d_Xmax, rho_max),method='Nelder-Mead')
             return res.x
+        
+        @staticmethod
+        def SymLDF(par,r):
+            """
+            The symmetric ldf to be fit to the fluence_par data.
+            
+            Args:
+                par: The parameter array;
+                r:   The distance to the axis.
+
+            Retuns:
+                LDF: The ldf value at distance r.
+            """
+            A = par[0]
+            B = par[1]
+            C = par[2]
+            D = par[3]
+
+            LDF = A*np.exp(-B*r-C*r**2-D*r**3)
+            return LDF
+        
+        @staticmethod
+        def LDF_chi2(par,r,fluence_par):
+            """
+            The LDF chi2.
+            
+            Args:
+                par: The parameter array;
+                r:   The distance to the axis;
+                fluence_par: The array with the symmetrized signal.
+
+            Retuns:
+                Chi2: The Chi2 value.
+            """
+            sel = np.where(fluence_par > 0)
+            f_par = fluence_par[sel]
+            Chi2 = 0
+            for i in range(f_par.size):
+                LDF = EnergyRec.SymFit.SymLDF(par,r[sel][i])
+                #if a_arr[i] < 1:
+                Chi2 = Chi2 + (f_par[i] -LDF)**2
+
+            return Chi2
+
+
+        @staticmethod
+        def SymLDF_fit(r,fluence_par):
+            """
+            Fits the symmetric LDF to the fluence_par data.
+            
+            Args:
+                r:   The distance to the axis;
+                fluence_par: The array with the symmetrized signal.
+
+            Retuns:
+                bestfit: The bestfit parameters array.
+            """
+            r0 = np.min(r)
+            i_d0 = np.where(r==r0)[0][0]
+            f0 = fluence_par[i_d0]
+
+            r1 =np.max(r[r<300])
+            i_d1 = np.where(r==r1)[0][0]
+            f1 = fluence_par[i_d1]
+
+            r2 =np.max(r[r<600])
+            i_d2 = np.where(r==r2)[0][0]
+            f2 = fluence_par[i_d2]
+
+            r3 =np.max(r[r<900])
+            i_d3 = np.where(r==r3)[0][0]
+            f3 = fluence_par[i_d3]
+
+            a = np.array([
+                [-r1,-r1**2,-r1**3],
+                [-r2,-r2**2,-r2**3],
+                [-r3,-r3**2,-r3**3]])
+            b = np.array([np.log(f1/f0),np.log(f2/f0),np.log(f3/f0)])
+
+            solution = np.linalg.solve(a, b)
+
+            par = np.insert(solution,0,f0)
+            res = sp.optimize.minimize(EnergyRec.SymFit.LDF_chi2,par,args=(r, fluence_par),method='Nelder-Mead')
+            return res.x
+
 
 print("* EnergyRec default values summary:")
 print("--> bool_plot = ",EnergyRec.bool_plot)
