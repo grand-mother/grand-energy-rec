@@ -70,17 +70,6 @@ class EnergyRec:
     shower = None
     ## An instance of the class MCMC
     mcmc = None
-    ## The array with the antenna fluences
-    fluence_arr = None
-    ## The array with the geomagnetic antenna fluences
-    fluence_geo = None
-    ## The array with the charge excess antenna fluences
-    fluence_ce = None
-    ## The array with the fluences on the evB direction
-    fluence_evB = None
-    ## The array with the fluences on the evvB direction
-    fluence_evvB = None
-    ## The position of the antennas
     ## The position of the antennas
     r_ant = None
     ## The bestfit values of the parameters
@@ -106,10 +95,11 @@ class EnergyRec:
 
         self.GRANDshower = CoreasShower.load(self.sim_dir)
         self.shower_projection()
-        self.read_antpos()
         
         n_ant = len(self.GRANDshower.fields)
         self.antenna = [self.Antenna() for ant in range(n_ant)]
+        self.Eval_fluences()
+        self.read_antpos()
 
         ev = self.GRANDshower.core - self.GRANDshower.maximum
         ev /= ev.norm()
@@ -280,7 +270,7 @@ class EnergyRec:
             self.antenna[id].compute_fluence(traces_rec[:,0],hilbert_env,self.SNR_thres,self.bool_plot)
                 
     
-    def Eval_geo_ce_fluences(self):
+    def Eval_fluences(self):
         """
         Evaluates the geomagnetic and charge excess fluences for a set os antennas.
             
@@ -325,11 +315,8 @@ class EnergyRec:
                 self.antenna[ant].fluence_ce = self.antenna[ant].fluence_evvB/(sinPhi*sinPhi)
 
             else:
-                fluence_arr[ant] = -1
-                fluence_geo[ant] = -1
-                fluence_ce[ant] = -1
-                fluence_evB[ant] = -1
-                fluence_evvB[ant] = -1
+                self.antenna[ant].fluence_geo = -1
+                self.antenna[ant].fluence_ce = -1
               
         print("\n")
 
@@ -345,8 +332,10 @@ class EnergyRec:
             fluence_par: Parametrized fluence array.
         """
 
-        if self.fluence_evB is None:
-            self.Eval_geo_ce_fluences()
+        
+        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        if all(f is None for f in f_list):
+            self.Eval_fluences()
 
         n_ant = len(self.GRANDshower.fields)
         fluence_par = np.zeros(n_ant)
@@ -359,7 +348,7 @@ class EnergyRec:
         for ant in range(n_ant):
             r_plane = self.shower.r_proj[ant][0:2]
             phi = np.arccos(np.dot(r_plane,np.array([1,0]))/np.linalg.norm(r_plane))
-            fluence_par[ant] = EnergyRec.SymFit.f_par_geo(self.fluence_evB[ant],phi,alpha,distance[ant],d_Xmax,par,rho_Xmax)
+            fluence_par[ant] = EnergyRec.SymFit.f_par_geo(self.antenna[ant].fluence_evB,phi,alpha,distance[ant],d_Xmax,par,rho_Xmax)
 
         return fluence_par
 
@@ -381,12 +370,13 @@ class EnergyRec:
         for key, value in self.GRANDshower.fields.items():
             r_ant[key]=value.electric.r.xyz.value
     
-    
+        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        sel = np.where(fluence_arr>0)
         if(self.bool_plot):
             fig= plt.figure(figsize=(10,7))
             ax = plt.gca()
     
-            plt.scatter(r_ant[:,0][self.fluence_arr>=0], r_ant[:,1][self.fluence_arr>=0], c=self.fluence_arr[self.fluence_arr>=0], cmap='viridis')
+            plt.scatter(r_ant[:,0][sel], r_ant[:,1][sel], c=fluence_arr[sel], cmap='viridis')
     
             plt.xlabel("x (in m)")
             plt.ylabel("y (in m)")
@@ -405,7 +395,11 @@ class EnergyRec:
         Args:
             self: An instance of EnergyRec.
         """
-        signal = np.c_[self.shower.r_proj[self.fluence_arr>0],self.fluence_arr[self.fluence_arr>0]]
+
+        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        sel = np.where(fluence_arr>0)
+
+        signal = np.c_[self.shower.r_proj[sel],fluence_arr[sel]]
     
         fluence_file=open('fluence_ShowerPlane_'+str(round(self.shower.thetaCR))+'.out', 'a')
         for entry in signal:
@@ -471,25 +465,10 @@ class EnergyRec:
 
         print("* Model fit:")
         if(filename==""):
-            if self.fluence_arr is None:
+            fluence_arr = np.array([ant.fluence for ant in self.antenna])
+            if all(f is None for f in fluence_arr):
                 print("--> fluence_arr == None. instance.Eval_fluences() has to be run!")
-                exit()
-            # Early-late effect
-            if self.bool_EarlyLate:
-                if self.shower.R0_R is None:
-                    self.early_late()
-                    i = 0
-                    for weight in self.shower.R0_R:
-                        self.fluence_arr[i] = self.fluence_arr[i]/(weight**2)
-                        self.shower.r_proj[i] = self.shower.r_proj[i]*weight
-                        i = i+1
-
-                    print("--> Early-late correction applied")
-                else:
-                    print("--> Early-late already applied")
-            elif self.shower.R0_R is not None:
-                print("--> Early-late correction already applied but instance.bool_EarlyLate != True")
-                exit()
+                exit()            
         
         else:
             if not Path(filename).is_file():
@@ -499,7 +478,11 @@ class EnergyRec:
             pos_fluence = np.loadtxt(datafile)
             datafile.close()
             self.shower.r_proj = np.c_[pos_fluence[:,0],pos_fluence[:,1]]
-            self.fluence_arr = pos_fluence[:,2]
+            for ant in self.antenna:
+                ant.fluence = pos_fluence[:,2][ant]
+
+        #if self.bool_EarlyLate:
+            # Take early late into account
 
         EnergyRec.AERA.aeraFit(self,filename,Cs)
         print("\n")
@@ -1248,14 +1231,13 @@ class EnergyRec:
             Chi2 = 0.
             i=0
             
-            EnergyRec.Shower.r_Core_proj = self.shower.r_Core_proj
-            for ant in self.shower.r_proj:
-                if self.fluence_arr[i] <= self.f_thres:
-                    i = i + 1
+            EnergyRec.Shower.r_Core_proj = self.shower.r_Core_proj ## Using class definition as a global variable!!
+            for ant in range(len(self.shower.r_proj)):
+                if self.antenna[ant].fluence <= self.f_thres:
                     continue
-                sigma = np.sqrt(self.fluence_arr[i])
-                #sigma=np.sqrt(np.max(self.fluence_arr))
-                Chi2 = Chi2 + ((EnergyRec.AERA.aeraLDF(par_fit,Cs, np.array([1,0]), ant[0], ant[1])-self.fluence_arr[i])/sigma)**2
+                sigma = np.sqrt(self.antenna[ant].fluence)
+
+                Chi2 = Chi2 + ((EnergyRec.AERA.aeraLDF(par_fit,Cs, np.array([1,0]), self.shower.r_proj[ant][0], self.shower.r_proj[ant][1])-self.antenna[ant].fluence)/sigma)**2
                 i = i + 1 
             return Chi2
 
@@ -1283,7 +1265,8 @@ class EnergyRec:
             my_evB = np.array([1,0])
         
             # amplitude guess
-            init_A = np.max(self.fluence_arr)
+            fluence_arr = np.array([ant.fluence for ant in self.antenna])
+            init_A = np.max(fluence_arr)
         
             # core position guess
             #core_index = np.where(fluence_arr==np.max(fluence_arr))[0][0]
@@ -1306,7 +1289,7 @@ class EnergyRec:
                 resx = np.append(res.x,Cs)
 
             chi2min = EnergyRec.AERA.aeraChi2(resx,Cs,self)
-            ndof = self.fluence_arr[self.fluence_arr>self.f_thres].size - res.x.size
+            ndof = fluence_arr[fluence_arr>self.f_thres].size - res.x.size
 
             print("** AERA fit:")
             print("---> ","{:6} {:>10} {:>10}".format("Par","Initial","Bestfit"))
@@ -1369,12 +1352,14 @@ class EnergyRec:
 
             par = [A,sigma,Cs[0],Cs[1],Cs[2],Cs[3],Cs[4]]
             
-            sel_signal = np.where(self.fluence_arr>0)
+            fluence_arr = np.array([ant.fluence for ant in self.antenna])
+            sel = np.where(fluence_arr>0)
+            fluence_arr=fluence_arr[sel]
             
-            delta_X = np.max(self.shower.r_proj[:,0][sel_signal]) - np.min(self.shower.r_proj[:,0][sel_signal])
-            delta_Y = np.max(self.shower.r_proj[:,1][sel_signal]) - np.min(self.shower.r_proj[:,1][sel_signal])
-            mean_X = np.min(self.shower.r_proj[:,0][sel_signal]) + delta_X/2
-            mean_Y = np.min(self.shower.r_proj[:,1][sel_signal]) + delta_Y/2
+            delta_X = np.max(self.shower.r_proj[:,0][sel]) - np.min(self.shower.r_proj[:,0][sel])
+            delta_Y = np.max(self.shower.r_proj[:,1][sel]) - np.min(self.shower.r_proj[:,1][sel])
+            mean_X = np.min(self.shower.r_proj[:,0][sel]) + delta_X/2
+            mean_Y = np.min(self.shower.r_proj[:,1][sel]) + delta_Y/2
 
             delta_XY = np.max([delta_X,delta_Y])*1.10
 
@@ -1398,10 +1383,11 @@ class EnergyRec:
             plt.subplot(121)
             im = plt.imshow(Z,cmap='viridis',origin = 'lower', extent=[minXAxis,maxXAxis,minYAxis,maxYAxis]) # drawing the function
 
-            x_proj = self.shower.r_proj[:,0]
-            y_proj = self.shower.r_proj[:,1]
-            plt.scatter(x_proj[sel_signal], y_proj[sel_signal], c=self.fluence_arr[sel_signal], cmap='viridis', s = 100, edgecolors=(1,1,1,0.2))
-            plt.clim(np.min([np.min(Z),np.min(self.fluence_arr[sel_signal])]), np.max([np.max(Z),np.max(self.fluence_arr[sel_signal])]))
+            x_proj = self.shower.r_proj[:,0][sel]
+            y_proj = self.shower.r_proj[:,1][sel]
+
+            plt.scatter(x_proj, y_proj, c=fluence_arr, cmap='viridis', s = 100, edgecolors=(1,1,1,0.2))
+            plt.clim(np.min([np.min(Z),np.min(fluence_arr)]), np.max([np.max(Z),np.max(fluence_arr)]))
             plt.colorbar().ax.set_ylabel(r"energy fluence in eV/m$^2$")
 
             plt.xlabel(r'distante along $\vec{v}\times\vec{B}$ (in m)')
@@ -1410,7 +1396,7 @@ class EnergyRec:
             plt.plot(rcore[0], rcore[1],'w*')
 
             plt.subplot(122)
-            plt.scatter(x_proj[sel_signal], y_proj[sel_signal], c=self.fluence_arr[sel_signal], cmap='viridis', s = 100, edgecolors=(1,1,1,0.2))
+            plt.scatter(x_proj, y_proj, c=fluence_arr, cmap='viridis', s = 100, edgecolors=(1,1,1,0.2))
             plt.xlabel(r'distante along $\vec{v}\times\vec{B}$ (in m)')
             plt.ylabel(r'distante along $\vec{v}\times\vec{v}\times\vec{B}$ (in m)')
             plt.colorbar().ax.set_ylabel(r"energy fluence in eV/m$^2$")
@@ -1425,19 +1411,19 @@ class EnergyRec:
             
             fig_ldf = plt.figure(figsize=[14,5])
             plt.subplot(121)
-            plt.errorbar(temp_dist[sel_signal],self.fluence_arr[sel_signal],yerr=np.sqrt(self.fluence_arr[sel_signal]),fmt='.')
+            plt.errorbar(temp_dist,fluence_arr,yerr=np.sqrt(fluence_arr),fmt='.')
             plt.xlabel("Distance from core in m")
             plt.ylabel(r"Fluence in eV/m$^2$")
             plt.gca().set_yscale('log')
                 
-            residual = np.zeros(self.fluence_arr[sel_signal].size)
+            residual = np.zeros(fluence_arr.size)
             
-            for i in range(self.fluence_arr[sel_signal].size):
-                residual[i] = (self.fluence_arr[sel_signal][i] - EnergyRec.AERA.aeraLDF(par, None,my_evB, x_proj[sel_signal][i], y_proj[sel_signal][i]))/np.sqrt(self.fluence_arr[sel_signal][i])
+            for i in range(fluence_arr.size):
+                residual[i] = (fluence_arr[i] - EnergyRec.AERA.aeraLDF(par, None,my_evB, x_proj[i], y_proj[i]))/np.sqrt(fluence_arr[i])
 
 
             plt.subplot(122)
-            plt.errorbar(temp_dist[sel_signal],residual,yerr=1,fmt='.')
+            plt.errorbar(temp_dist,residual,yerr=1,fmt='.')
             plt.xlabel("Distance from core in m")
             plt.ylabel(r"($f$ - fit)/$\sigma_f$")    
             #plt.xlim(0,500)
