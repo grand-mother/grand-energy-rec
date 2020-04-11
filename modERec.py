@@ -62,8 +62,8 @@ class EnergyRec:
     thres_high = 1
     ## A final lower threshold for selecting antennas in eV/m^2.
     f_thres = 0.01
-    ## The path to the simulation directory.
-    sim_dir = None
+    ## The path to the simulation.
+    simulation = None
     ## An instance of the class Antenna
     antenna = None
     ## An instance of the class Shower
@@ -75,54 +75,60 @@ class EnergyRec:
     ## The shower imported using the standard grand package
     GRANDshower = None
 
-    def __init__(self,sim_dir):
+    def __init__(self,simulation):
         """
         The default init function for the class EnergyRec.
     
         Args:
             self: An instance of EnergyRec;
-            sim_dir: The path to the simulation directory;
+            simulation: The path to the simulation directory of file ;
         """
-        self.sim_dir = sim_dir
+        self.simulation = simulation
         self.shower = self.Shower()
         self.mcmc = self.MCMC()
 
-        if not Path(self.sim_dir).is_dir():
-            print("ERROR: directory ",self.sim_dir," not found!")
-            raise SystemExit("Stop right there!")
+        if Path(self.simulation).is_dir():
 
-        self.GRANDshower = CoreasShower.load(self.sim_dir)
+            self.GRANDshower = CoreasShower.load(self.simulation)
+            
+            n_ant = len(self.GRANDshower.fields)
+            self.antenna = [self.Antenna() for ant in range(n_ant)]
+            self.shower_projection()
+
+            self.Eval_fluences()
+            #self.plot_antpos()
+
+            ev = self.GRANDshower.core - self.GRANDshower.maximum
+            ev /= ev.norm()
+            self.shower.ev = ev.xyz.value
+            evB = ev.cross(self.GRANDshower.geomagnet)
+            evB /= evB.norm()
+            self.shower.evB = evB.xyz.value
+            evvB = ev.cross(evB)
+            self.shower.evvB = evvB.xyz.value
+            eB = self.GRANDshower.geomagnet.xyz.value
+            eB /= np.linalg.norm(eB)
+            self.shower.eB = eB
+
+            self.early_late()
+
+            print("* EnergyRec instance starting values summary:")
+            print("--> bool_plot = ",self.bool_plot)
+            print("--> bool_EarlyLate = ",self.bool_EarlyLate)
+            print("--> nu_low = ",self.nu_low)
+            print("--> nu_high = ",self.nu_high)
+            print("--> SNR_thres = ",self.SNR_thres)
+            print("--> thres_low = ",self.thres_low)
+            print("--> thres_high = ",self.thres_high)
+            print("--> f_thres = ",self.f_thres)
+            print("\n")
+
+        elif Path(self.simulation).is_file():
+            self.model_fit(simulation)
         
-        n_ant = len(self.GRANDshower.fields)
-        self.antenna = [self.Antenna() for ant in range(n_ant)]
-        self.shower_projection()
-
-        self.Eval_fluences()
-        self.plot_antpos()
-
-        ev = self.GRANDshower.core - self.GRANDshower.maximum
-        ev /= ev.norm()
-        self.shower.ev = ev.xyz.value
-        evB = ev.cross(self.GRANDshower.geomagnet)
-        evB /= evB.norm()
-        self.shower.evB = evB.xyz.value
-        evvB = ev.cross(evB)
-        self.shower.evvB = evvB.xyz.value
-        eB = self.GRANDshower.geomagnet.xyz.value
-        eB /= np.linalg.norm(eB)
-        self.shower.eB = eB
-
-        self.early_late()
-
-        print("* EnergyRec instance starting values summary:")
-        print("--> bool_plot = ",self.bool_plot)
-        print("--> bool_EarlyLate = ",self.bool_EarlyLate)
-        print("--> nu_low = ",self.nu_low)
-        print("--> nu_high = ",self.nu_high)
-        print("--> SNR_thres = ",self.SNR_thres)
-        print("--> thres_low = ",self.thres_low)
-        print("--> thres_high = ",self.thres_high)
-        print("--> f_thres = ",self.f_thres)
+        else:
+            print("ERROR: ",self.simulation," not found!")
+            raise SystemExit("Stop right there!")
       
     def simulation_inspect(self):
         """
@@ -301,6 +307,8 @@ class EnergyRec:
                 print("-->",int((ant+1)/(10*step)*100),"% complete;")
 
             self.process_antenna(ant)
+            if self.antenna[ant].fluence > 0:
+                self.antenna[ant].sigma_f = np.sqrt(self.antenna[ant].fluence)
 
             if(self.antenna[ant].fluence > self.f_thres):
                 r_plane =self.antenna[ant].r_proj[0:2]
@@ -347,6 +355,63 @@ class EnergyRec:
             fluence_par[ant] = EnergyRec.SymFit.f_par_geo(ant.fluence_evB,phi,alpha,dist,d_Xmax,par,rho_Xmax)
 
         return fluence_par
+
+    @staticmethod
+    def eval_mean_fluences(antpos_fluences):
+        """
+        Evaluates the fluence mean and sigma (stdev) for a give set of simulated fluences
+        
+        Args:
+            antpos_fluences: An input with columns: x_proj, y_proj, fluence
+
+        Retuns:
+            x, y, mean fluence, sigma_f.
+        """
+
+        x_proj = antpos_fluences[:,0]
+        y_proj = antpos_fluences[:,1]
+
+        fluence_arr = antpos_fluences[:,3]
+
+        fluence_mean = {}
+        fluence_mean2 = {}
+        counter = {}
+        pos = {}
+        for i in range(len(fluence_arr)):
+            label = str(x_proj[i]) + str(y_proj[i])
+
+            if label in counter:
+                counter[label] = counter[label] + 1
+            else:
+                counter[label] = 1
+
+            pos[label] = [x_proj[i],y_proj[i]]
+
+            if label in fluence_mean:
+                fluence_mean[label] += fluence_arr[i]
+                fluence_mean2[label] += fluence_arr[i]**2
+            else:
+                fluence_mean[label] = fluence_arr[i]
+                fluence_mean2[label] = fluence_arr[i]**2
+
+        f_mean = np.zeros(len(pos))
+        f_mean2 = np.zeros(len(pos))
+        r = np.zeros((len(pos),2))
+
+        trim_counter = {}
+        for key, value in counter.items():
+            if value < 2:
+                pos.pop(key)
+
+        index = 0
+        for key, value in pos.items():
+            label = key
+            f_mean[index] = fluence_mean[label]/counter[label]
+            f_mean2[index] = fluence_mean2[label]/counter[label]
+            r[index] = value
+            index += 1
+
+        return r[:,0], r[:,1], f_mean, np.sqrt(f_mean2-f_mean**2)
 
     def plot_antpos(self):
         """
@@ -420,7 +485,7 @@ class EnergyRec:
 
         for key, value in self.GRANDshower.fields.items():
             r_ant = value.electric.r #- self.GRANDshower.core
-            self.antenna[key].r_proj = self.GRANDshower.transform(r_ant,shower_frame).cartesian.xyz
+            self.antenna[key].r_proj = self.GRANDshower.transform(r_ant,shower_frame).cartesian.xyz.value
 
             E = self.GRANDshower.fields[key].electric.E
             traces_proj[key] = self.GRANDshower.transform(E,shower_frame)
@@ -454,21 +519,33 @@ class EnergyRec:
             fluence_arr = np.array([ant.fluence for ant in self.antenna])
             if all(f is None for f in fluence_arr):
                 print("--> fluence_arr == None. instance.Eval_fluences() has to be run!")
-                exit()            
+                exit()
+            
+            if(self.bool_EarlyLate):
+                print("--> Early-late correction will be applied!")
         
         else:
             if not Path(filename).is_file():
                 print("ERROR: file ",filename," not found!")
                 raise SystemExit("Stop right there!")
             datafile = open(filename,'r')
-            pos_fluence = np.loadtxt(datafile)
+            antpos_fluences = np.loadtxt(datafile)
             datafile.close()
-            for ant in self.antenna:
-                ant.fluence = pos_fluence[:,2][ant]
-                ant.r_proj = [pos_fluence[:,0],pos_fluence[:,1],0]
+            #x_proj, y_proj, fluence_arr, sigma_arr = self.eval_mean_fluences(antpos_fluences)
 
-        if(self.bool_EarlyLate):
-            print("--> Early-late correction applied!")
+            #self.antenna = [self.Antenna() for ant in range(len(fluence_arr))]
+            self.antenna = [self.Antenna() for ant in range(len(antpos_fluences))]
+
+            for ant in range(len(antpos_fluences)):
+                # self.antenna[ant].fluence = fluence_arr[ant]
+                # self.antenna[ant].r_proj = [x_proj[ant],y_proj[ant],0]
+                # self.antenna[ant].sigma_f = sigma_arr[ant]
+                self.antenna[ant].r_proj = [antpos_fluences[ant,0],antpos_fluences[ant,1],0]
+                self.antenna[ant].fluence = antpos_fluences[ant,2]
+                self.antenna[ant].sigma_f = np.sqrt(antpos_fluences[ant,2])
+            
+            self.shower.r_Core_proj = np.array([0,0,0])
+
 
         EnergyRec.AERA.aeraFit(self,filename,Cs)
         print("\n")
@@ -493,7 +570,7 @@ class EnergyRec:
         R_0 = np.linalg.norm(rXmax)
 
         for ant in self.antenna:
-            r_ant = ant.r_proj.value - self.shower.r_Core_proj
+            r_ant = ant.r_proj - self.shower.r_Core_proj
             R = R_0 + r_ant[2] ## R_ant[2] is the distance from the core projected into ev
             ant.wEarlyLate = R_0/R        
 
@@ -548,6 +625,8 @@ class EnergyRec:
         """
         ## The total fluence.
         fluence = None
+        ## An estimate of the uncertainty of the fluence.
+        sigma_f = None
         ## The geomagnetic component of the fluence
         fluence_geo = None
         ## The charge ecess component of the fluence
@@ -556,6 +635,8 @@ class EnergyRec:
         fluence_evB = None
         ## The fluence on the evvB direction
         fluence_evvB = None
+        ## A wight to be used for the early-late correction
+        wEarlyLate = None
         ## The position of the antenna in the shower plane
         r_proj = None
 
@@ -1220,15 +1301,15 @@ class EnergyRec:
                 if ant.fluence <= self.f_thres:
                     continue
 
-                if(self.bool_EarlyLate):
+                if(self.bool_EarlyLate and ant.wEarlyLate is not None):
                     weight = ant.wEarlyLate
                 else:
                     weight = 1
 
-                x = ant.r_proj[0].value*weight
-                y = ant.r_proj[1].value*weight
+                x = ant.r_proj[0]*weight
+                y = ant.r_proj[1]*weight
                 f = ant.fluence/(weight**2)
-                sigma = np.sqrt(ant.fluence)
+                sigma = ant.sigma_f/(weight**2)
                 Chi2 = Chi2 + ((EnergyRec.AERA.aeraLDF(par_fit,Cs, np.array([1,0]), x, y)-f)/sigma)**2
                 i = i + 1 
             return Chi2
@@ -1296,26 +1377,19 @@ class EnergyRec:
             print("---> ","Chi2min/n.d.o.f = ",str(round(chi2min,2))," / ",int(ndof))
         
             bestfit=open(bestfit_out, 'a')
-            CR_input_Sradio=open("CR_input_Sradio.out", 'a')
-
-            
-            A=resx[0]
-            sigma=resx[1]
-            sin2Alpha = 1-np.dot(self.shower.ev,self.shower.eB)**2.
-            Cs = np.array([resx[2],resx[3],resx[4],resx[5],resx[6]])
-            Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
 
             if(filename==""):
-                print(str(resx)[1:-1],Sradio,file=bestfit)
+                A=resx[0]
+                sigma=resx[1]
+                sin2Alpha = 1-np.dot(self.shower.ev,self.shower.eB)**2.
+                Cs = np.array([resx[2],resx[3],resx[4],resx[5],resx[6]])
+                Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
+                print(*resx,Sradio,file=bestfit)
                 
             else:
-                print(str(resx)[1:-1],file=bestfit)
+                print(*resx,file=bestfit)
             
-            #print(self.shower.thetaCR,self.shower.phiCR,self.shower.ECR,Sradio,file=CR_input_Sradio)
-            print(Sradio,file=CR_input_Sradio)
-
             bestfit.close()
-            CR_input_Sradio.close()
             
             ## \cond
             self.bestfit = resx
@@ -1335,17 +1409,19 @@ class EnergyRec:
             A = self.bestfit[0]
             sigma = self.bestfit[1]
             rcore = self.shower.r_Core_proj[0:2]
-            sin2Alpha = (1-np.dot(self.shower.ev,self.shower.eB)**2.)
+            #sin2Alpha = (1-np.dot(self.shower.ev,self.shower.eB)**2.)
         
             Cs = np.array([self.bestfit[2],self.bestfit[3],self.bestfit[4],self.bestfit[5],self.bestfit[6]])
-            Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
-            print('S_radio=',round(Sradio,2))
+            #Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
+            #print('S_radio=',round(Sradio,2))
 
             par = [A,sigma,Cs[0],Cs[1],Cs[2],Cs[3],Cs[4]]
 
             fluence_arr = np.array([ant.fluence for ant in self.antenna])
             if(self.bool_EarlyLate):
                 weight =  np.array([ant.wEarlyLate for ant in self.antenna])
+                if all(w is None for w in weight):
+                    weight = np.full(len(fluence_arr),1)
             else:
                 weight = np.full(len(fluence_arr),1)
             sel = np.where(fluence_arr>0)
