@@ -35,7 +35,7 @@ from scipy import stats
 from pathlib import Path
 import math
 
-from grand.simulation import CoreasShower
+from grand.simulation import ShowerEvent
 import astropy.units as u
 from astropy.coordinates import CartesianRepresentation
 from grand import Rotation
@@ -89,9 +89,9 @@ class EnergyRec:
         self.shower = self.Shower()
         self.mcmc = self.MCMC()
 
-        if Path(self.simulation).is_dir():
+        if Path(self.simulation).is_dir() or self.simulation.endswith('hdf5'):
 
-            self.GRANDshower = CoreasShower.load(self.simulation)
+            self.GRANDshower = ShowerEvent.load(self.simulation)
             
             n_ant = len(self.GRANDshower.fields)
             self.antenna = [self.Antenna(ant) for ant in range(n_ant)]
@@ -1394,7 +1394,7 @@ class EnergyRec:
                 sin2Alpha = 1-np.dot(self.shower.ev,self.shower.eB)**2.
                 Cs = np.array([resx[2],resx[3],resx[4],resx[5],resx[6]])
                 Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
-                print(*resx,Sradio,file=bestfit)
+                print(*resx,self.GRANDshower.energy.value,Sradio,file=bestfit)
                 
             else:
                 print(*resx,file=bestfit)
@@ -1540,7 +1540,7 @@ class EnergyRec:
             Retuns:
                 a_ratio: The charge-excess to geomagnetic ratio.
             """ 
-            rho_mean = 0.4
+            rho_mean = 0.327
             return par[0]*(r/d_Xmax)*np.exp(r/par[1])*(np.exp((rho_max-rho_mean)/par[2])-par[3])
 
         @staticmethod
@@ -1740,10 +1740,11 @@ class EnergyRec:
 
             p0 = par[0]
             p1 = par[1]
-            rho_mean = 0.648
+            #rho_mean = 0.648
+            rho_mean = 0.327
             den = sin2alpha*(1 - p0 + p0*np.exp(p1*(rho_Xmax-rho_mean)))
 
-            return E_rad/den
+            return E_rad*1.e-9/den # in GeV
 
         @staticmethod
         def Sradio_mod(par,E):
@@ -1780,6 +1781,7 @@ class EnergyRec:
             """
             
             Chi2 = 0 
+
             for i in range(len(ldf_par_arr)):
                 S_geo = EnergyRec.SymFit.Sradio_geo(par[0:2],ldf_par_arr[i],alpha_arr[i],rho_Xmax_arr[i])
                 S_mod = EnergyRec.SymFit.Sradio_mod(par[2:4],E_arr[i])
@@ -1805,7 +1807,7 @@ class EnergyRec:
 
             p0 = 0.394
             p1 = -2.370 #m^3/kg
-            S_19 = 1.408 #GeV
+            S_19 = 1.408 #in GeV
             gamma = 1.995
             par = [p0,p1,S_19,gamma]
 
