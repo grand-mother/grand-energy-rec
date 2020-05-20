@@ -83,7 +83,7 @@ class EnergyRec:
     
         Args:
             self: An instance of EnergyRec;
-            simulation: The path to the simulation directory of file ;
+            simulation: The path to the simulation directory or file ;
         """
         self.simulation = simulation
         self.shower = self.Shower()
@@ -135,8 +135,6 @@ class EnergyRec:
       
     def simulation_inspect(self):
         """
-        Checks whether the files needed for the reconstruction are available.
-            
         Outputs theta, phi, Energy and the core position.
 
         Args:
@@ -165,11 +163,8 @@ class EnergyRec:
         Plots the traces for a given antenna.   
 
         Args:
-            self: An instance of EnergyRec.Antenna.
+            self: An instance of EnergyRec.
             id: The antenna id.  
-
-        Fills:
-            EnergyRec.Antenna.traces.
     
         """
                 
@@ -234,9 +229,10 @@ class EnergyRec:
         Process a given antenna for inspection.
         
         For a given initialized antenna, performs offset and cut, fft, trace recover, hilbert envelope and computes the fluence.
+        Calls EnergyRec.Antenna.compute_fluence;
 
         Args:
-            self: An instance of EnergyRec.Antenna.
+            self: An instance of EnergyRec.
         
         """
         if(id<len(self.GRANDshower.fields)):
@@ -282,9 +278,7 @@ class EnergyRec:
         """
         Evaluates the geomagnetic and charge excess fluences for a set os antennas.
             
-        It has two thresholds for the fluence: thres_low and thres_high.
-
-        The early-late correction is performed automaticaly in this function.
+        It has a lower threshold for the fluence f_thres.
 
         Args:
             self: An instance of EnergyRec.
@@ -331,11 +325,12 @@ class EnergyRec:
 
     def Eval_par_fluences(self,par):
         """
-        Evaluates the fluence par for a give set of parameters
+        Evaluates the fluence par for a give set of parameters.
+        Uses bool_EarlyLate to toggle early-late correction.
         
         Args:
             self: An instance of EnergyRec
-            par: The paramters of the a_ratio parametrization.
+            par: The parameters of the a_ratio parametrization.
 
         Retuns:
             fluence_par: Parametrized fluence array.
@@ -425,7 +420,7 @@ class EnergyRec:
 
     def plot_antpos(self):
         """
-        Reads the position of the antennas.
+        Plots the fluence and antenna positions in the site plane.
 
         Args:
             self: An instance of EnergyRec.
@@ -664,6 +659,9 @@ class EnergyRec:
 
             Args:
                 traces: The traces to be filtered
+                nu_low: lower bound of the frequency band;
+                nu_high: upper bound of the frequency band;
+                bool_plot: toggles plots on and off;
 
             Returns:
                 traces_fft: The Fourier transform of the traces.        
@@ -731,7 +729,9 @@ class EnergyRec:
             Reconstructs the trace after the FFT and filter.
 
             Args:
-                traces_fft: The Fourier transform of the traces'.
+                t: The time array for the traces;
+                traces_fft: The Fourier transform of the traces.
+                bool_plot: toggles plots on and off;
 
             Returns:
                 traces_rc: The reconstructed traces.
@@ -781,6 +781,7 @@ class EnergyRec:
             
             Args:
                 traces_rec: The reconstructed traces.
+                bool_plot: toggles plots on and off;
 
             Returns:
                 hilbert: The hilbert envelopes [total, in evB direction, in evvB direction, in ev direction].
@@ -828,11 +829,15 @@ class EnergyRec:
             Computes the fluence for a given antenna.
             
             \f$ f = \epsilon_0 c\left(\Delta t \sum_{t_1}^{t_2} \left| \vec{E}(t_i)\right|^2 - \Delta t \frac{t_2-t_1}{t_4-t_3} \sum_{t_3}^{t_4} \left| \vec{E}(t_i)\right|^2 \right) \f$
-            \n \n It has a threshold for the SNR set by EnergyRec.SNR_thres.
+            \n \n It has a threshold for the SNR set by instance.SNR_thres.
 
             Args:
-                self: an instance of EnergyRec.Antenna.
-                hilbert_env: The hilbert envelopes.
+                self: an instance of EnergyRec.Antenna;
+                t: The time array for the traces;
+                hilbert_env: The hilbert envelopes;
+                SNR_thres: The signal to noise ratio threshold;
+                bool_plot: toggles plots on and off;
+
 
             Fills:
                 EnergyRec.Antenna.fluence;
@@ -922,11 +927,15 @@ class EnergyRec:
             """
             Performs cuts and offsets the traces.
             
-            The offset prevents problems due to traces to close to the time origin.
+            The offset prevents problems due to traces too close to the time origin.
             The cut, reduces the time window to speed up the code.
 
             Args:
-                traces: The traces to be cut.
+                traces: The traces to be cut;
+                bool_cut: Toggles the bandwith cut;
+
+            Returns:
+                traces_cut:
             
             """
             traces0 = traces[:,0]
@@ -1786,7 +1795,7 @@ class EnergyRec:
                 S_geo = EnergyRec.SymFit.Sradio_geo(par[0:2],ldf_par_arr[i],alpha_arr[i],rho_Xmax_arr[i])
                 S_mod = EnergyRec.SymFit.Sradio_mod(par[2:4],E_arr[i])
 
-                Chi2 = Chi2 + (S_geo - S_mod)**2
+                Chi2 = Chi2 + ((S_geo - S_mod)/np.sqrt(S_geo))**2
             
             return Chi2
 
