@@ -11,7 +11,6 @@
 # It has the following inner classes: \n
 # --> EnergyRec.Antenna which holds the antenna specific methods and variables.\n
 # --> EnergyRec.AERA with AERA specific methods.\n
-# --> EnergyRec.MCMC that contains MCMC methods.\n
 # --> EnergyRec.Shower that stores shower specific variables.\n
 # --> EnergyRec.SymFit implements the symmetric signal fit.\n \n
 # *** Updates on November 13, 2019:
@@ -44,7 +43,7 @@ class EnergyRec:
     """
     A class for the energy reconstruction.
     
-    It has the inner classes: AERA, Antenna, MCMC and Shower.
+    It has the inner classes: AERA, Antenna and Shower.
     """
     ## Toggles the plots on and off.
     bool_plot = False
@@ -68,8 +67,6 @@ class EnergyRec:
     antenna = None
     ## An instance of the class Shower
     shower = None
-    ## An instance of the class MCMC
-    mcmc = None
     ## The bestfit values of the parameters
     bestfit = None
     ## The shower imported using the standard grand package
@@ -87,7 +84,6 @@ class EnergyRec:
         """
         self.simulation = simulation
         self.shower = self.Shower()
-        self.mcmc = self.MCMC()
 
         if Path(self.simulation).is_dir() or self.simulation.endswith('hdf5'):
 
@@ -958,292 +954,6 @@ class EnergyRec:
                 sel = ((my_traces[:,0]>peak_time-1000) & (my_traces[:,0]<peak_time+1000))
             
             return my_traces[sel,0:4]
-
-    class MCMC:
-        """
-        A class to handle MCMC for parameter p.d.f.s estimation.
-        """
-        ## The number of sampling links
-        num_samples = 100000
-        ## The number of burn in links
-        burn_in = 1000
-        ## The chain itself
-        chain = None
-        
-        def __init__(self):
-            """
-            The standard initialization class.
-            """
-            pass
-
-        def metropolis_hastings(self):
-            """
-            Performs the MCMC sampling using the Metropolis-Hastings algorithm.
-
-            Args:
-                self: An instance of EnergyRec.MCMC.
-
-            Fills:
-                EnergyRec.MCMC.chain.
-            """
-            print("* Performing the MCMC sampling:")
-            my_evB = np.array([1,0])
-            Cs=0
-            n_par = self.bestfit.size
-
-            # sample normal values as stepsize for the updates
-            # important: g is symmetric, so we don't have to use it in the calculation of alpha below
-            steps = np.ndarray(shape=(EnergyRec.MCMC.num_samples,n_par))
-            for i in range(n_par):
-                steps[:,i] = np.random.normal(0, np.abs(self.bestfit[i])/100., EnergyRec.MCMC.num_samples)
-
-            # with some bookkeeping, I only have to call the pdf of f once per loop iteration
-            # that is initialized here
-            x = deepcopy(self.bestfit)
-
-            first_step = np.zeros(n_par)
-            for i in range(n_par):
-                first_step[i] = np.random.normal(0, np.abs(self.bestfit[i])/100.)
-            x_next = x + first_step
-
-            chi2min = EnergyRec.AERA.aeraChi2(x,self)
-
-            myChi2 = EnergyRec.AERA.aeraChi2(x,self)
-            current_prob = np.exp(-(myChi2-chi2min)/2)
-
-            myChi2 = EnergyRec.AERA.aeraChi2(x_next,self)
-            next_prob = np.exp(-(myChi2-chi2min)/2)
-
-            x_chosen = np.zeros((EnergyRec.MCMC.num_samples,n_par))
-
-            probs =  np.zeros(EnergyRec.MCMC.num_samples)
-
-            step = int(EnergyRec.MCMC.num_samples/10)
-
-            print("--> 0% complete;")
-            for i in range(EnergyRec.MCMC.num_samples):
-
-                if ((i+1)%step == 0):
-                    print("-->",int((i+1)/(10*step)*100),"% complete;")
-
-                # to account for cases where the pdf is 0
-                # it would be good to avoid them by having a sensible starting point for x
-                # they can also occur if the stepsize is so huge that our samples run out of domain
-                # so this is a security measure
-                if current_prob == 0:
-                    # we always accept the next sample
-                    alpha = 1
-                elif next_prob == 0:
-                    # we never accept the next sample accept the next sample
-                    alpha = 0
-                else:
-                    # this is the normal MH alpha calculation
-                    alpha = next_prob / current_prob
-
-                if np.random.rand() < alpha:
-                    x = x_next
-                    current_prob = next_prob
-
-                probs[i] = current_prob
-
-                x_next = x + steps[i]
-
-                myChi2 = EnergyRec.AERA.aeraChi2(x_next,self)
-                next_prob = np.exp(-(myChi2-chi2min)/2)
-
-                x_chosen[i] = x
-
-            #plt.plot(range(num_samples),probs)
-            x_final = x_chosen[EnergyRec.MCMC.burn_in:]
-
-            self.chain = x_final
-
-        def contour1DMCMC(self,par,xlabel="par1"):
-            """
-            Plots the p.d.f. for a given parameter from the chain.
-
-            Args:
-                self: An instance EnergyRec.MCMC;
-                par: The corresponding parameter;
-                xlabel: A label for the parameter.
-            """
-
-            my_MCMC = deepcopy(self.chain)
-            weights = np.zeros(my_MCMC[:,0].size)+1
-
-            for i in range(my_MCMC[0,:].size):
-                if(i!=par):
-                    stdev = np.std(self.chain[:,i]) # Narrow marginalization
-                    sel = np.abs(my_MCMC[:,i]-self.bestfit[i]) < 1*stdev
-                    weights = weights*stats.norm.pdf(my_MCMC[:,i],self.bestfit[i],stdev)
-
-            n_sigma = 5
-            par_arr = my_MCMC[:,par]
-            xmean = np.sum(par_arr*weights)/np.sum(weights)
-            xstd =  np.sqrt(np.sum((weights*(par_arr-xmean)**2))/np.sum(weights))
-            xmin = xmean-n_sigma*xstd
-            xmax = xmean+n_sigma*xstd
-
-            #Perform a kernel density estimate on the data:
-
-            xx = np.linspace(xmin,xmax,200)
-            kernel = stats.gaussian_kde(par_arr,weights=weights)
-            yy = kernel(xx)
-
-            dx = xx[1]-xx[0]
-
-            integral = np.sum(yy)*(dx)
-
-            yy = yy/integral
-
-            ymax = np.max(yy)
-
-            hh1 = deepcopy(ymax)
-            h_step = hh1/100
-            cl1 = 0
-            cl2 = 0
-
-            while(cl1<0.68):
-                hh1 = hh1-h_step
-                cl1 = np.sum(yy[yy>hh1])*(dx)
-
-            hh2 = deepcopy(hh1)
-            while(cl2<0.95):
-                hh2 = hh2-h_step
-                cl2 = np.sum(yy[yy>hh2])*(dx)
-
-            print("---> p.d.f for par: ","{:8} {} {:8} {} {:8}".format(xlabel," --> Integral: cl1 =", round(cl1,4), " ; cl2 =", round(cl2,4)))
-
-            plt.plot(xx,yy,label="p.d.f")
-            plt.axhline(y=hh1,color='orange', label=r"1$\sigma$ C.L.", alpha = 0.5, linestyle = "--")
-            plt.axhline(y=hh2,color='blue', label=r"2$\sigma$ C.L.", alpha = 0.5, linestyle = "--")
-            plt.xlabel(xlabel)
-            plt.ylabel("p.d.f")
-
-            xmean = np.sum(par_arr*weights)/np.sum(weights)
-            xstd =  np.sqrt(np.sum((weights*(par_arr-xmean)**2))/np.sum(weights))
-            xmin = xmean-3*xstd
-            xmax = xmean+3*xstd
-            plt.xlim([xmin,xmax])
-            plt.legend()
-
-        def contour2DMCMC(self,par1,par2,xlabel="par1",ylabel="par2"):
-            """
-            Plots the 2D contours for a given parameter pair from the chain.
-
-            Args:
-                self: An instance of EnergyRec.MCMC;
-                par1: The 'x' corresponding parameter;
-                par2: The 'y' corresponding parameter;
-                xlabel: A label for par1;
-                ylabel: A label for par2;
-            """
-            my_MCMC = deepcopy(self.chain)
-            weights = np.zeros(my_MCMC[:,0].size)+1
-
-            for i in range(my_MCMC[0,:].size):
-                if(i!=par1 and i!=par2):
-                    stdev = np.std(self.chain[:,i]) # Narrow marginalization
-                    sel = np.abs(my_MCMC[:,i]-self.bestfit[i]) < 1*stdev
-                    weights = weights*stats.norm.pdf(my_MCMC[:,i],self.bestfit[i],stdev)
-
-            par1_arr = my_MCMC[:,par1]
-            par2_arr = my_MCMC[:,par2]
-
-            #Perform a kernel density estimate on the data:
-            n_sigma = 5
-            xmean = np.sum(par1_arr*weights)/np.sum(weights)
-            xstd =  np.sqrt(np.sum((weights*(par1_arr-xmean)**2))/np.sum(weights))
-            xmin = xmean-n_sigma*xstd
-            xmax = xmean+n_sigma*xstd
-
-            ymean = np.sum(par2_arr*weights)/np.sum(weights)
-            ystd =  np.sqrt(np.sum((weights*(par2_arr-ymean)**2))/np.sum(weights))
-            ymin = ymean-n_sigma*ystd
-            ymax = ymean+n_sigma*ystd
-
-            X, Y = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
-            positions = np.vstack([X.ravel(), Y.ravel()])
-            values = np.vstack([par1_arr, par2_arr])
-            kernel = stats.gaussian_kde(values,weights=weights)
-            Z = np.reshape(kernel(positions).T, X.shape)
-
-            dx = X[0,0]-X[1,0]
-            dy = Y[0,0]-Y[0,1]
-
-            integral = np.sum(Z)*(dx)*(dy)
-
-            Z = Z/integral
-
-            Zmax = np.max(Z)
-
-            hh1 = deepcopy(Zmax)
-            h_step = hh1/100
-            cl1 = 0
-            cl2 = 0
-
-            while(cl1<0.68):
-                hh1 = hh1-h_step
-                cl1 = np.sum(Z[Z>hh1])*(dx)*(dy)
-
-            hh2 = deepcopy(hh1)
-            while(cl2<0.95):
-                hh2 = hh2-h_step
-                cl2 = np.sum(Z[Z>hh2])*(dx)*(dy)
-
-            
-            print("---> 2D contour for par: (","{} {} {} {} {:8} {} {:8}".format(xlabel,",",ylabel,") --> Integral: cl1 =", round(cl1,4), " ; cl2 =", round(cl2,4)))
-
-            ax = plt.gca()
-
-            ax.imshow(np.rot90(Z), cmap=plt.cm.gist_earth_r,extent=[xmin, xmax, ymin, ymax], aspect='auto')
-
-            CS = ax.contour(X, Y, Z, levels=[hh2,hh1])
-
-            xmean = np.sum(par1_arr*weights)/np.sum(weights)
-            xstd =  np.sqrt(np.sum((weights*(par1_arr-xmean)**2))/np.sum(weights))
-            xmin = xmean-3*xstd
-            xmax = xmean+3*xstd
-
-            ymean = np.sum(par2_arr*weights)/np.sum(weights)
-            ystd =  np.sqrt(np.sum((weights*(par2_arr-ymean)**2))/np.sum(weights))
-            ymin = ymean-3*ystd
-            ymax = ymean+3*ystd
-
-            plt.xlim([xmin,xmax])
-            plt.ylim([ymin,ymax])
-            plt.xlabel(xlabel)
-            plt.ylabel(ylabel)
-
-        def plotContour_MCMC(self):
-            """
-            Produces the 1D and 2D plots from the MCMC.
-
-            Args:
-                self: An instance of EnergyRec.
-            """
-            print("* Performing MCMC statistics:")
-            # 1D p.d.f.
-            print("** 1D analysis:")
-            my_labels = ["A",r"$\sigma$",r"$C_0$",r"$C_1$",r"$C_2$",r"$C_3$",r"$C_4$"]
-            my_2D = [1,2,3,4,6,7,8,11,12,16]
-            fig = plt.figure(figsize=(18,12))
-            for i in range(7):
-                plt.subplot(331+i)
-                EnergyRec.MCMC.contour1DMCMC(self,i,my_labels[i])
-
-            # 2D contours
-            print("** 2D analysis:")
-            fig = plt.figure(figsize=(23,15))
-            counter = 0
-            for i in range(2,7):
-                for j in range(i+1,7):
-                    plt.subplot(4,4,my_2D[counter])
-                    EnergyRec.MCMC.contour2DMCMC(self,i,j,my_labels[i],my_labels[j])
-                    counter = counter + 1
-            
-            #ax = plt.gca()
-            #ax.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
 
     class AERA:
         """
