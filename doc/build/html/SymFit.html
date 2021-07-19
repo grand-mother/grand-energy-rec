@@ -1,0 +1,443 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>modERec.SymFit Class &#8212; GRAND Energy Reconstruction 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/pydoctheme.css" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="modERec.EnergyRec Class" href="EnergyRec.html" />
+    <link rel="prev" title="modERec.AERA Class" href="AERA.html" />
+    <link rel="shortcut icon" type="image/png" href="_static/py.png" />
+    
+    <script type="text/javascript" src="_static/copybutton.js"></script>
+    
+     
+
+  </head><body>  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="EnergyRec.html" title="modERec.EnergyRec Class"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="AERA.html" title="modERec.AERA Class"
+             accesskey="P">previous</a> |</li>
+    <li><img src="_static/py.png" alt=""
+             style="vertical-align: middle; margin-top: -1px"/></li>
+    <li><a href="https://www.python.org/">Python</a> &#187;</li>
+    
+    <a href="index.html">GRAND Energy Reconstruction 0.0.1 documentation</a> &#187;
+    
+
+        <li class="nav-item nav-item-this"><a href="">modERec.SymFit Class</a></li>
+    <li class="right">
+        
+
+    <div class="inline-search" style="display: none" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" type="text" name="q" />
+          <input type="submit" value="Go" />
+          <input type="hidden" name="check_keywords" value="yes" />
+          <input type="hidden" name="area" value="default" />
+        </form>
+    </div>
+    <script type="text/javascript">$('.inline-search').show(0);</script>
+         |
+    </li>
+
+      </ul>
+    </div>    
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="moderec-symfit-class">
+<h1>modERec.SymFit Class<a class="headerlink" href="#moderec-symfit-class" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="modERec.SymFit">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">modERec.</span></span><span class="sig-name descname"><span class="pre">SymFit</span></span><a class="headerlink" href="#modERec.SymFit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class with the symmetric signal distribution specific methods.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.Chi2_joint_S">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">Chi2_joint_S</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ldf_par_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_Xmax_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">E_arr</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.Chi2_joint_S" title="Permalink to this definition">¶</a></dt>
+<dd><p>The chi2 for the joint fit os Sradio_geo and Sradio_mod.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>par</strong> – The full parameter array;</p></li>
+<li><p><strong>ldf_par_arr</strong> – The array with the ldf_par for each simulation;</p></li>
+<li><p><strong>alpha_arr</strong> – The array with the geomagnetic angles of each simulation;</p></li>
+<li><p><strong>rho_Xmax</strong> – The array with the density at Xmax of each simulation;</p></li>
+<li><p><strong>E_arr</strong> – The array with the energies of each simulation in GeV;</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>Chi2</strong> – The <span class="math notranslate nohighlight">\(\chi^2\)</span> value.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.LDF_chi2">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">LDF_chi2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fluence_par</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.LDF_chi2" title="Permalink to this definition">¶</a></dt>
+<dd><p>The LDF chi2.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>par</strong> – The parameter array;</p></li>
+<li><p><strong>r</strong> – The distance to the axis;</p></li>
+<li><p><strong>fluence_par</strong> – The array with the symmetrized signal.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>Chi2</strong> – The <span class="math notranslate nohighlight">\(\chi^2\)</span> value.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.Sradio_geo">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">Sradio_geo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ldf_par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_Xmax</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.Sradio_geo" title="Permalink to this definition">¶</a></dt>
+<dd><p>The radiation energy corrected for the scaling of the emission strength with the geomagnetic angle and the atmospheric density.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>par</strong> – The free parameters of the correction;</p></li>
+<li><p><strong>ldf_par</strong> – The parameters to be used in the symmetric LDF;</p></li>
+<li><p><strong>alpha</strong> – The geomagnetic angle;</p></li>
+<li><p><strong>rho_Xmax</strong> – The density in the X_max.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>S_radio_geo</strong> – The corrected radiation energy</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.Sradio_mod">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">Sradio_mod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">E</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.Sradio_mod" title="Permalink to this definition">¶</a></dt>
+<dd><p>The model for the relation between S_radio and the energy.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>par</strong> – The free parameters of the model;</p></li>
+<li><p><strong>E</strong> – The energy of the event in EeV.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>S_radio_mod</strong> – The model <span class="math notranslate nohighlight">\(S_{radio}\)</span>.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.SymLDF">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">SymLDF</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.SymLDF" title="Permalink to this definition">¶</a></dt>
+<dd><p>The symmetric ldf to be fit to the fluence_par data.</p>
+<div class="math notranslate nohighlight">
+\[f_{ABCD}(r) = A.exp\left[-B.r-C.r^2-D.r^3\right]\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>par</strong> – The parameter array;</p></li>
+<li><p><strong>r</strong> – The distance to the axis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>LDF</strong> – The ldf value at distance r.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.SymLDF_fit">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">SymLDF_fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fluence_par</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.SymLDF_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fits the symmetric LDF to the fluence_par data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>r</strong> – The distance to the axis;</p></li>
+<li><p><strong>fluence_par</strong> – The array with the symmetrized signal.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>bestfit</strong> – The bestfit parameters array.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.a_ratio">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">a_ratio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_Xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_max</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.a_ratio" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluates the charge-excess to geomagnetic ratio.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>r</strong> – Antenna position in the shower plane;</p></li>
+<li><p><strong>d_Xmax</strong> – Distance from core to shower maximum in meters;</p></li>
+<li><p><strong>par</strong> – The parameters;</p></li>
+<li><p><strong>rho_max</strong> – Air density at shower maximum.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>a_ratio</strong> – The charge-excess to geomagnetic ratio.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.a_ratio_chi2">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">a_ratio_chi2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fluence_geo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fluence_ce</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_Xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_Xmax</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.a_ratio_chi2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Chi2 for the a_ratio fit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>par</strong> – The parameters;</p></li>
+<li><p><strong>fluence_geo</strong> – An array with the geomagnetic fluences;</p></li>
+<li><p><strong>fluence_ce</strong> – An array with the charge excess fluences;</p></li>
+<li><p><strong>alpha</strong> – An array with the geomagnetic angles;</p></li>
+<li><p><strong>r</strong> – An array with the antenna distances to the core in the shower plane;</p></li>
+<li><p><strong>d_Xmax</strong> – The distance from the core to the Xmax;</p></li>
+<li><p><strong>rho_Xmax</strong> – The atmospheric density in the Xmax.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>Chi2</strong> – The <span class="math notranslate nohighlight">\(\chi^2\)</span> value.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.a_ratio_fit">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">a_ratio_fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fluence_geo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fluence_ce</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_Xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_max</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.a_ratio_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fits the a_ratio.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fluence_geo</strong> – An array with the geomagnetic fluences;</p></li>
+<li><p><strong>fluence_ce</strong> – An array with the charge excess fluences;</p></li>
+<li><p><strong>alpha</strong> – An array with the geomagnetic angles;</p></li>
+<li><p><strong>r</strong> – An array with the antenna distances to the core in the shower plane;</p></li>
+<li><p><strong>d_Xmax</strong> – An array with the distances to shower maximum;</p></li>
+<li><p><strong>rho_max</strong> – An array with the densities at shower maximum.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>bestfit</strong> – The bestfit parameters array.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.f_par_geo">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">f_par_geo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f_vB</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_Xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">par</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_max</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.f_par_geo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluates the parametrized geomagnetic fluence.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f_vB</strong> – Fluence in the v times B direction;</p></li>
+<li><p><strong>phi</strong> – The angle between the antenna position and the v times B direciton;</p></li>
+<li><p><strong>alpha</strong> – The geomagnetic angle.</p></li>
+<li><p><strong>r</strong> – Antenna position in the shower plane;</p></li>
+<li><p><strong>d_Xmax</strong> – Distance from core to shower maximum in meters;</p></li>
+<li><p><strong>par</strong> – The parameters;</p></li>
+<li><p><strong>rho_max</strong> – Air density at shower maximum.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>f_par_geo</strong> – The parametrized geomagnetic fluence.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.joint_S_fit">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">joint_S_fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ldf_par_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_Xmax_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">E_arr</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.joint_S_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performs the joint fit of the S_radio.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ldf_par_arr</strong> – The array with the ldf_par for each simulation;</p></li>
+<li><p><strong>alpha_arr</strong> – The array with the geomagnetic angles of each simulation;</p></li>
+<li><p><strong>rho_Xmax</strong> – The array with the density at Xmax of each simulation;</p></li>
+<li><p><strong>E_arr</strong> – The array with the energies of each simulation in GeV;</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>bestfit</strong> – The bestfit array.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.SymFit.rho">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">e_vec</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.SymFit.rho" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluates the air density at a given position.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>r</strong> – The distance to the position in meters;</p></li>
+<li><p><strong>e_vec</strong> – The direction of the position (unitary vector);</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>rho</strong> – The air density.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>double</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="AERA.html"
+                        title="previous chapter">modERec.AERA Class</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="EnergyRec.html"
+                        title="next chapter">modERec.EnergyRec Class</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/SymFit.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="EnergyRec.html" title="modERec.EnergyRec Class"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="AERA.html" title="modERec.AERA Class"
+             >previous</a> |</li>
+    <li><img src="_static/py.png" alt=""
+             style="vertical-align: middle; margin-top: -1px"/></li>
+    <li><a href="https://www.python.org/">Python</a> &#187;</li>
+    
+    <a href="index.html">GRAND Energy Reconstruction 0.0.1 documentation</a> &#187;
+    
+
+        <li class="nav-item nav-item-this"><a href="">modERec.SymFit Class</a></li>
+    <li class="right">
+        
+
+    <div class="inline-search" style="display: none" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" type="text" name="q" />
+          <input type="submit" value="Go" />
+          <input type="hidden" name="check_keywords" value="yes" />
+          <input type="hidden" name="area" value="default" />
+        </form>
+    </div>
+    <script type="text/javascript">$('.inline-search').show(0);</script>
+         |
+    </li>
+
+      </ul>
+    </div>  
+    <div class="footer">
+    &copy; <a href="copyright.html">Copyright</a> 2020, Bruno L Lago.
+    <br />
+    This page is licensed under the Python Software Foundation License Version 2.
+    <br />
+    Examples, recipes, and other code in the documentation are additionally licensed under the Zero Clause BSD License.
+    <br />
+    See <a href="">History and License</a> for more information.
+    <br /><br />
+
+    The Python Software Foundation is a non-profit corporation.
+<a href="https://www.python.org/psf/donations/">Please donate.</a>
+<br />
+    <br />
+
+    Last updated on None.
+    
+    <br />
+
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 4.1.1.
+    </div>
+
+  </body>
+</html>
