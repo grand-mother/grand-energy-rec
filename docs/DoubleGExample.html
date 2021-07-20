@@ -1,0 +1,274 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Double Gaussian Example &#8212; GRAND Energy Reconstruction 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/pydoctheme.css" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Double Gaussian Fit Jupyter Example" href="DoubleGJupyter.html" />
+    <link rel="prev" title="Basic Examples" href="Examples.html" />
+    <link rel="shortcut icon" type="image/png" href="_static/py.png" />
+    
+    <script type="text/javascript" src="_static/copybutton.js"></script>
+    
+     
+
+  </head><body>  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="DoubleGJupyter.html" title="Double Gaussian Fit Jupyter Example"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="Examples.html" title="Basic Examples"
+             accesskey="P">previous</a> |</li>
+    <li><img src="_static/py.png" alt=""
+             style="vertical-align: middle; margin-top: -1px"/></li>
+    <li><a href="https://www.python.org/">Python</a> &#187;</li>
+    
+    <a href="index.html">GRAND Energy Reconstruction 0.0.1 documentation</a> &#187;
+    
+
+        <li class="nav-item nav-item-this"><a href="">Double Gaussian Example</a></li>
+    <li class="right">
+        
+
+    <div class="inline-search" style="display: none" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" type="text" name="q" />
+          <input type="submit" value="Go" />
+          <input type="hidden" name="check_keywords" value="yes" />
+          <input type="hidden" name="area" value="default" />
+        </form>
+    </div>
+    <script type="text/javascript">$('.inline-search').show(0);</script>
+         |
+    </li>
+
+      </ul>
+    </div>    
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="double-gaussian-example">
+<h1>Double Gaussian Example<a class="headerlink" href="#double-gaussian-example" title="Permalink to this headline">¶</a></h1>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">modERec</span> <span class="k">import</span> <span class="n">EnergyRec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+</pre></div>
+</div>
+<div class="section" id="training-stage">
+<h2>Training stage<a class="headerlink" href="#training-stage" title="Permalink to this headline">¶</a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">EnergyRec</span><span class="o">.</span><span class="n">bool_EarlyLate</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">EnergyRec</span><span class="o">.</span><span class="n">bool_plot</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fluences_file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;fluences_all.out&quot;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100001</span><span class="p">,</span><span class="mi">100008</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">simulation</span> <span class="o">=</span> <span class="s2">&quot;sim&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.hdf5&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">rec</span> <span class="o">=</span> <span class="n">EnergyRec</span><span class="p">(</span><span class="n">simulation</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">for</span> <span class="n">ant</span> <span class="ow">in</span> <span class="n">rec</span><span class="o">.</span><span class="n">antenna</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="n">fluence</span> <span class="o">=</span> <span class="n">ant</span><span class="o">.</span><span class="n">fluence</span><span class="o">/</span><span class="p">(</span><span class="n">ant</span><span class="o">.</span><span class="n">wEarlyLate</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">if</span><span class="p">(</span><span class="n">fluence</span><span class="o">&gt;</span><span class="n">rec</span><span class="o">.</span><span class="n">f_thres</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="n">ant</span><span class="o">.</span><span class="n">r_proj</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">rec</span><span class="o">.</span><span class="n">shower</span><span class="o">.</span><span class="n">r_Core_proj</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">ant</span><span class="o">.</span><span class="n">wEarlyLate</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">y</span> <span class="o">=</span> <span class="p">(</span><span class="n">ant</span><span class="o">.</span><span class="n">r_proj</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">rec</span><span class="o">.</span><span class="n">shower</span><span class="o">.</span><span class="n">r_Core_proj</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">ant</span><span class="o">.</span><span class="n">wEarlyLate</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">sigma_f</span> <span class="o">=</span> <span class="n">ant</span><span class="o">.</span><span class="n">sigma_f</span><span class="o">/</span><span class="p">(</span><span class="n">ant</span><span class="o">.</span><span class="n">wEarlyLate</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="nb">print</span><span class="p">(</span><span class="n">ant</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">fluence</span><span class="p">,</span> <span class="n">sigma_f</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">fluences_file</span><span class="p">)</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fluences_file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="determination-fo-the-c-parameters">
+<h2>Determination fo the C parameters<a class="headerlink" href="#determination-fo-the-c-parameters" title="Permalink to this headline">¶</a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">rec</span> <span class="o">=</span> <span class="n">EnergyRec</span><span class="p">(</span><span class="s2">&quot;fluences_all.out&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Cs</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">bestfit</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="s-radio-evaluation">
+<h2><span class="math notranslate nohighlight">\(S_{radio}\)</span> Evaluation<a class="headerlink" href="#s-radio-evaluation" title="Permalink to this headline">¶</a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">os</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">&quot;bestfit.out&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100001</span><span class="p">,</span><span class="mi">100008</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">simulation</span> <span class="o">=</span> <span class="s2">&quot;sim&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.hdf5&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">rec</span> <span class="o">=</span> <span class="n">EnergyRec</span><span class="p">(</span><span class="n">simulation</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">rec</span><span class="o">.</span><span class="n">model_fit</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span><span class="n">Cs</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="model-fit">
+<h2>Model fit<a class="headerlink" href="#model-fit" title="Permalink to this headline">¶</a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">scipy</span> <span class="k">as</span> <span class="nn">sp</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">A</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="n">B</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">S_radio</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="s2">&quot;bestfit.out&quot;</span><span class="p">)[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="mf">1.e-9</span> <span class="c1"># from eV to GeV</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">E_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="s2">&quot;bestfit.out&quot;</span><span class="p">)[:,</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="mf">1.e-9</span> <span class="c1"># from GeV to EeV</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">AB_fit</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">optimize</span><span class="o">.</span><span class="n">curve_fit</span><span class="p">(</span><span class="n">model</span><span class="p">,</span><span class="n">E_arr</span><span class="p">,</span><span class="n">S_radio</span><span class="p">,</span><span class="n">sigma</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">S_radio</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="plot-the-result">
+<h2>Plot the result<a class="headerlink" href="#plot-the-result" title="Permalink to this headline">¶</a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">121</span><span class="p">)</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">E_arr</span><span class="o">*</span><span class="mf">1.e+18</span><span class="p">,</span><span class="n">S_radio</span><span class="p">,</span><span class="s2">&quot;*&quot;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;MC&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span><span class="o">.</span><span class="n">set_xscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;E$_</span><span class="si">{MC}</span><span class="s2">$ (eV)&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;S$_</span><span class="si">{radio}</span><span class="s2">$ (GeV)&quot;</span><span class="p">)</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fit_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">E_arr</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">E_arr</span><span class="p">),</span><span class="mi">100</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fit_y</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">fit_x</span><span class="p">,</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fit_x</span> <span class="o">=</span> <span class="n">fit_x</span><span class="o">*</span><span class="mf">1.e+18</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fit_label</span> <span class="o">=</span> <span class="s2">&quot;fit: &quot;</span><span class="o">+</span> <span class="s2">&quot;</span><span class="si">{:.2e}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="s2">&quot; x pow(E,&quot;</span><span class="o">+</span> <span class="s2">&quot;</span><span class="si">{:.2f}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span><span class="s2">&quot;)&quot;</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">fit_x</span><span class="p">,</span><span class="n">fit_y</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">fit_label</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">122</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">relative</span> <span class="o">=</span> <span class="p">(</span><span class="n">S_radio</span> <span class="o">-</span> <span class="n">model</span><span class="p">(</span><span class="n">E_arr</span><span class="p">,</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span><span class="o">/</span><span class="n">model</span><span class="p">(</span><span class="n">E_arr</span><span class="p">,</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">re_label</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(S$_</span><span class="si">{radio}</span><span class="s2">$-fit)/fit&quot;</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">erec</span> <span class="o">=</span> <span class="nb">pow</span><span class="p">((</span><span class="n">S_radio</span><span class="o">/</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span><span class="mf">1.</span><span class="o">/</span><span class="n">AB_fit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="n">E_arr</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">stat</span> <span class="o">=</span> <span class="s2">&quot;mean = &quot;</span> <span class="o">+</span><span class="s2">&quot;</span><span class="si">{:.2f}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">erec</span><span class="p">))</span> <span class="o">+</span> <span class="sa">r</span><span class="s2">&quot; ; $\sigma$ = &quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="si">{:.2f}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">erec</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">e_label</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;E$_</span><span class="si">{radio}</span><span class="s2">$/E_$</span><span class="si">{MC}</span><span class="s2">$&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">erec</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">stat</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">e_label</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="mf">0.8</span><span class="p">,</span><span class="mf">1.2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;#&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Double Gaussian Example</a><ul>
+<li><a class="reference internal" href="#training-stage">Training stage</a></li>
+<li><a class="reference internal" href="#determination-fo-the-c-parameters">Determination fo the C parameters</a></li>
+<li><a class="reference internal" href="#s-radio-evaluation"><span class="math notranslate nohighlight">\(S_{radio}\)</span> Evaluation</a></li>
+<li><a class="reference internal" href="#model-fit">Model fit</a></li>
+<li><a class="reference internal" href="#plot-the-result">Plot the result</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="Examples.html"
+                        title="previous chapter">Basic Examples</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="DoubleGJupyter.html"
+                        title="next chapter">Double Gaussian Fit Jupyter Example</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/DoubleGExample.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="DoubleGJupyter.html" title="Double Gaussian Fit Jupyter Example"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="Examples.html" title="Basic Examples"
+             >previous</a> |</li>
+    <li><img src="_static/py.png" alt=""
+             style="vertical-align: middle; margin-top: -1px"/></li>
+    <li><a href="https://www.python.org/">Python</a> &#187;</li>
+    
+    <a href="index.html">GRAND Energy Reconstruction 0.0.1 documentation</a> &#187;
+    
+
+        <li class="nav-item nav-item-this"><a href="">Double Gaussian Example</a></li>
+    <li class="right">
+        
+
+    <div class="inline-search" style="display: none" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" type="text" name="q" />
+          <input type="submit" value="Go" />
+          <input type="hidden" name="check_keywords" value="yes" />
+          <input type="hidden" name="area" value="default" />
+        </form>
+    </div>
+    <script type="text/javascript">$('.inline-search').show(0);</script>
+         |
+    </li>
+
+      </ul>
+    </div>  
+    <div class="footer">
+    &copy; <a href="copyright.html">Copyright</a> 2020, Bruno L Lago.
+    <br />
+    This page is licensed under the Python Software Foundation License Version 2.
+    <br />
+    Examples, recipes, and other code in the documentation are additionally licensed under the Zero Clause BSD License.
+    <br />
+    See <a href="">History and License</a> for more information.
+    <br /><br />
+
+    The Python Software Foundation is a non-profit corporation.
+<a href="https://www.python.org/psf/donations/">Please donate.</a>
+<br />
+    <br />
+
+    Last updated on None.
+    
+    <br />
+
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 4.1.1.
+    </div>
+
+  </body>
+</html>

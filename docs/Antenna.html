@@ -1,0 +1,342 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>modERec.Antenna Class &#8212; GRAND Energy Reconstruction 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/pydoctheme.css" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="modERec.Shower Class" href="Shower.html" />
+    <link rel="prev" title="Welcome to GRAND Energy Reconstruction’s documentation!" href="index.html" />
+    <link rel="shortcut icon" type="image/png" href="_static/py.png" />
+    
+    <script type="text/javascript" src="_static/copybutton.js"></script>
+    
+     
+
+  </head><body>  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="Shower.html" title="modERec.Shower Class"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to GRAND Energy Reconstruction’s documentation!"
+             accesskey="P">previous</a> |</li>
+    <li><img src="_static/py.png" alt=""
+             style="vertical-align: middle; margin-top: -1px"/></li>
+    <li><a href="https://www.python.org/">Python</a> &#187;</li>
+    
+    <a href="index.html">GRAND Energy Reconstruction 0.0.1 documentation</a> &#187;
+    
+
+        <li class="nav-item nav-item-this"><a href="">modERec.Antenna Class</a></li>
+    <li class="right">
+        
+
+    <div class="inline-search" style="display: none" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" type="text" name="q" />
+          <input type="submit" value="Go" />
+          <input type="hidden" name="check_keywords" value="yes" />
+          <input type="hidden" name="area" value="default" />
+        </form>
+    </div>
+    <script type="text/javascript">$('.inline-search').show(0);</script>
+         |
+    </li>
+
+      </ul>
+    </div>    
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="moderec-antenna-class">
+<h1>modERec.Antenna Class<a class="headerlink" href="#moderec-antenna-class" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="modERec.Antenna">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">modERec.</span></span><span class="sig-name descname"><span class="pre">Antenna</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ID</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.Antenna" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class for the antenna signal processing.</p>
+<p>It has tools for the FFT, trace_recover and fluence evaluation.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.ID">
+<span class="sig-name descname"><span class="pre">ID</span></span><a class="headerlink" href="#modERec.Antenna.ID" title="Permalink to this definition">¶</a></dt>
+<dd><p>An id for the antenna</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.fluence">
+<span class="sig-name descname"><span class="pre">fluence</span></span><a class="headerlink" href="#modERec.Antenna.fluence" title="Permalink to this definition">¶</a></dt>
+<dd><p>he total fluence.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.sigma_f">
+<span class="sig-name descname"><span class="pre">sigma_f</span></span><a class="headerlink" href="#modERec.Antenna.sigma_f" title="Permalink to this definition">¶</a></dt>
+<dd><p>An estimate of the uncertainty of the fluence.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.fluence_geo">
+<span class="sig-name descname"><span class="pre">fluence_geo</span></span><a class="headerlink" href="#modERec.Antenna.fluence_geo" title="Permalink to this definition">¶</a></dt>
+<dd><p>The geomagnetic component of the fluence</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.fluence_ce">
+<span class="sig-name descname"><span class="pre">fluence_ce</span></span><a class="headerlink" href="#modERec.Antenna.fluence_ce" title="Permalink to this definition">¶</a></dt>
+<dd><p>The charge ecess component of the fluence</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.fluence_evB">
+<span class="sig-name descname"><span class="pre">fluence_evB</span></span><a class="headerlink" href="#modERec.Antenna.fluence_evB" title="Permalink to this definition">¶</a></dt>
+<dd><p>The fluence on the evB direction</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.fluence_evvB">
+<span class="sig-name descname"><span class="pre">fluence_evvB</span></span><a class="headerlink" href="#modERec.Antenna.fluence_evvB" title="Permalink to this definition">¶</a></dt>
+<dd><p>The fluence on the evvB direction</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.wEarlyLate">
+<span class="sig-name descname"><span class="pre">wEarlyLate</span></span><a class="headerlink" href="#modERec.Antenna.wEarlyLate" title="Permalink to this definition">¶</a></dt>
+<dd><p>A weight to be used for the early-late correction</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modERec.Antenna.r_proj">
+<span class="sig-name descname"><span class="pre">r_proj</span></span><a class="headerlink" href="#modERec.Antenna.r_proj" title="Permalink to this definition">¶</a></dt>
+<dd><p>The position of the antenna in the shower plane</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.Antenna.compute_fluence">
+<span class="sig-name descname"><span class="pre">compute_fluence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hilbert_env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">SNR_thres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bool_plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.Antenna.compute_fluence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the fluence for a given antenna.</p>
+<div class="math notranslate nohighlight">
+\[f = \epsilon_0 c\left(\Delta t \sum_{t_1}^{t_2} \left| \vec{E}(t_i)\right|^2 - \Delta t \frac{t_2-t_1}{t_4-t_3} \sum_{t_3}^{t_4} \left| \vec{E}(t_i)\right|^2 \right)\]</div>
+<p>It has a threshold for the SNR set by instance.SNR_thres.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>self</strong> (<em>modERec.EnergyRec.Antenna</em>) – A class instance.</p></li>
+<li><p><strong>t</strong> – The time array for the traces;</p></li>
+<li><p><strong>hilbert_env</strong> – The hilbert envelopes;</p></li>
+<li><p><strong>SNR_thres</strong> – The signal to noise ratio threshold;</p></li>
+<li><p><strong>bool_plot</strong> (<em>bool</em>) – toggles plots on and off;</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Fills self.fluence, self.fluence_geo, self.fluence_ce, self.fluence_evB and self.luence_evvB.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.Antenna.fft_filter">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">fft_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">traces</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu_low</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu_high</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bool_plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.Antenna.fft_filter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluates the FFT of the signal.</p>
+<p>A filter is applied with width given by instance.antenna.nu_high and instance.antenna.nu_low.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>traces</strong> – The traces to be filtered</p></li>
+<li><p><strong>nu_low</strong> – lower bound of the frequency band;</p></li>
+<li><p><strong>nu_high</strong> – upper bound of the frequency band;</p></li>
+<li><p><strong>bool_plot</strong> (<em>bool</em>) – toggles plots on and off;</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>traces_fft</strong> – The Fourier transform of the traces.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.Antenna.hilbert_envelope">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">hilbert_envelope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">traces_rec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bool_plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.Antenna.hilbert_envelope" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluates the hilbert envelope of the recunstructed traces.</p>
+<div class="math notranslate nohighlight">
+\[\mathcal{H}\{f(x)\}:=H(x)=\frac{1}{\pi}{\rm p.v.}\int_{-\infty}^\infty \frac{f(u)}{u-x}{\rm d}u\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>traces_rec</strong> – The reconstructed traces.</p></li>
+<li><p><strong>bool_plot</strong> – toggles plots on and off;</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>hilbert</strong> – The hilbert envelopes [total, in evB direction, in evvB direction, in ev direction].</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.Antenna.offset_and_cut">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">offset_and_cut</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">traces</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bool_cut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.Antenna.offset_and_cut" title="Permalink to this definition">¶</a></dt>
+<dd><p>Performs cuts and offsets the traces.</p>
+<p>The offset prevents problems due to traces too close to the time origin.
+The cut, reduces the time window to speed up the code.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>traces</strong> – The traces to be cut;</p></li>
+<li><p><strong>bool_cut</strong> – Toggles the bandwith cut;</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>traces_cut</strong> – The cut traces.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modERec.Antenna.trace_recover">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">trace_recover</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">traces_fft</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bool_plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modERec.Antenna.trace_recover" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reconstructs the trace after the FFT and filter.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – The time array for the traces;</p></li>
+<li><p><strong>traces_fft</strong> – The Fourier transform of the traces.</p></li>
+<li><p><strong>bool_plot</strong> (<em>bool</em>) – toggles plots on and off;</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>traces_rc</strong> – The reconstructed traces.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to GRAND Energy Reconstruction’s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="Shower.html"
+                        title="next chapter">modERec.Shower Class</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/Antenna.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="Shower.html" title="modERec.Shower Class"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to GRAND Energy Reconstruction’s documentation!"
+             >previous</a> |</li>
+    <li><img src="_static/py.png" alt=""
+             style="vertical-align: middle; margin-top: -1px"/></li>
+    <li><a href="https://www.python.org/">Python</a> &#187;</li>
+    
+    <a href="index.html">GRAND Energy Reconstruction 0.0.1 documentation</a> &#187;
+    
+
+        <li class="nav-item nav-item-this"><a href="">modERec.Antenna Class</a></li>
+    <li class="right">
+        
+
+    <div class="inline-search" style="display: none" role="search">
+        <form class="inline-search" action="search.html" method="get">
+          <input placeholder="Quick search" type="text" name="q" />
+          <input type="submit" value="Go" />
+          <input type="hidden" name="check_keywords" value="yes" />
+          <input type="hidden" name="area" value="default" />
+        </form>
+    </div>
+    <script type="text/javascript">$('.inline-search').show(0);</script>
+         |
+    </li>
+
+      </ul>
+    </div>  
+    <div class="footer">
+    &copy; <a href="copyright.html">Copyright</a> 2020, Bruno L Lago.
+    <br />
+    This page is licensed under the Python Software Foundation License Version 2.
+    <br />
+    Examples, recipes, and other code in the documentation are additionally licensed under the Zero Clause BSD License.
+    <br />
+    See <a href="">History and License</a> for more information.
+    <br /><br />
+
+    The Python Software Foundation is a non-profit corporation.
+<a href="https://www.python.org/psf/donations/">Please donate.</a>
+<br />
+    <br />
+
+    Last updated on None.
+    
+    <br />
+
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 4.1.1.
+    </div>
+
+  </body>
+</html>
