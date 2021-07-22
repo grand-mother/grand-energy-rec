@@ -620,8 +620,7 @@ class EnergyRec:
             if Path(self.simulation).is_dir():
                 self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)   
             
-            n_ant = len(self.GRANDshower.fields)
-            self.antenna = [Antenna(ant) for ant in range(n_ant)]
+            self.antenna = {ant : Antenna(ant) for ant in self.GRANDshower.fields.keys()}
             self.shower_projection()
 
             self.Eval_fluences()
@@ -676,7 +675,7 @@ class EnergyRec:
 
             fields = FieldsCollection()
 
-            pattern = re.compile('([0-9]+)$')
+            #pattern = re.compile('([0-9]+)$')
             for antenna, x, y, z, *_ in antennas:
                 #tag = tag.decode()
                 #antenna = int(pattern.search(tag)[1])
@@ -691,7 +690,7 @@ class EnergyRec:
                 #E = CartesianRepresentation(Ex, Ey, Ez, copy=False),
 
                 fields[antenna] = CollectionEntry(
-                    electric=ElectricField(t = None, E = None, r = None))
+                    electric=ElectricField(t = None, E = None, r = r))
 
             primary = {
                 'Fe^56'  : ParticleCode.IRON,
@@ -1109,7 +1108,6 @@ class EnergyRec:
         """
         #The antenna projection
         n_ant = len(self.GRANDshower.fields)
-        antpos_proj = np.zeros((n_ant,3))
 
         shower_frame = self.GRANDshower.shower_frame()
         traces_proj = {}
@@ -1118,8 +1116,11 @@ class EnergyRec:
             r_ant = value.electric.r #- self.GRANDshower.core
             self.antenna[key].r_proj = self.GRANDshower.transform(r_ant,shower_frame).cartesian.xyz.value
 
-            E = self.GRANDshower.fields[key].electric.E
-            traces_proj[key] = self.GRANDshower.transform(E,shower_frame)
+            if self.simulation_type != "custom":
+                E = self.GRANDshower.fields[key].electric.E
+                traces_proj[key] = self.GRANDshower.transform(E,shower_frame)
+            else:
+                traces_proj[key] = None
 
         core = self.GRANDshower.core
         r_Core_proj = self.GRANDshower.transform(core,shower_frame).cartesian.xyz
