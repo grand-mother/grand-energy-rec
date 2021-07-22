@@ -39,6 +39,15 @@ import astropy.units as u
 from astropy.coordinates import CartesianRepresentation
 from grand import Rotation
 
+import h5py
+from grand import ECEF, LTP
+from grand.simulation.shower.generic import FieldsCollection, CollectionEntry
+import re
+from grand.simulation import ElectricField
+from grand.simulation.pdg import ParticleCode
+from astropy.coordinates import PhysicsSphericalRepresentation
+from datetime import datetime
+
 class Antenna:
     """
     A class for the antenna signal processing.
@@ -556,6 +565,8 @@ class EnergyRec:
     f_thres = 0.01
     ## The path to the simulation.
     simulation = None
+    ## The simulation type (coreas, zhaires, custom).
+    simulation_type = "coreas"
     ## An instance of the class Antenna
     antenna = None
     ## An instance of the class Shower
@@ -564,6 +575,8 @@ class EnergyRec:
     bestfit = None
     ## The shower imported using the standard grand package
     GRANDshower = None
+    ## The height of the site
+    site_height = 0
     ## A print level variable
     printLevel = 0
 
@@ -583,9 +596,9 @@ class EnergyRec:
 
         if Path(self.simulation).is_dir() or self.simulation.endswith('hdf5'):
 
-            if not self.simulation.startswith('Stshp_XmaxLibrary'):
+            if self.simulation_type == "coreas":
                 self.GRANDshower = ShowerEvent.load(self.simulation)
-            else:
+            elif self.simulation_type == "zhaires":
                 self.GRANDshower = ZhairesShower._from_datafile(self.simulation)
 
                 # Fixing Aires to GRAND conventions
@@ -601,6 +614,8 @@ class EnergyRec:
 
                 self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)
 
+            elif self.simulation_type == "custom":
+                self.GRANDshower = self.custom_from_datafile(self.simulation, self.site_height)
 
             if Path(self.simulation).is_dir():
                 self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)   
@@ -644,7 +659,82 @@ class EnergyRec:
         else:
             print("ERROR: ",self.simulation," not found!")
             raise SystemExit("Stop right there!")
-      
+
+    @staticmethod
+    def custom_from_datafile(path: Path, site_height = 0) -> ZhairesShower:
+        with h5py.File(path, 'r') as fd:
+            if not 'RunInfo.__table_column_meta__' in fd['/']:
+                return super()._from_datafile(path)
+
+            for name in fd['/'].keys():
+                if not name.startswith('RunInfo'):
+                    break
+
+            event = fd[f'{name}/EventInfo']
+            antennas = fd[f'{name}/AntennaInfo']
+            #traces = fd[f'{name}/AntennaTraces']
+
+            fields = FieldsCollection()
+
+            pattern = re.compile('([0-9]+)$')
+            for antenna, x, y, z, *_ in antennas:
+                #tag = tag.decode()
+                #antenna = int(pattern.search(tag)[1])
+                r = CartesianRepresentation(
+                    float(x), float(y), float(z), unit=u.m)
+                #tmp = traces[f'{tag}/efield'][:]
+                #efield = tmp.view('f4').reshape(tmp.shape + (-1,))
+                #t = numpy.asarray(efield[:,0], 'f8') << u.ns
+                #Ex = numpy.asarray(efield[:,1], 'f8') << u.uV / u.m
+                #Ey = numpy.asarray(efield[:,2], 'f8') << u.uV / u.m
+                #Ez = numpy.asarray(efield[:,3], 'f8') << u.uV / u.m
+                #E = CartesianRepresentation(Ex, Ey, Ez, copy=False),
+
+                fields[antenna] = CollectionEntry(
+                    electric=ElectricField(t = None, E = None, r = None))
+
+            primary = {
+                'Fe^56'  : ParticleCode.IRON,
+                'Gamma'  : ParticleCode.GAMMA,
+                'Proton' : ParticleCode.PROTON
+            }[event[0, 'Primary'].decode()]
+
+            geomagnet = PhysicsSphericalRepresentation(
+                theta = float(90 + event[0, 'BFieldIncl']) << u.deg,
+                phi = 0 << u.deg,
+                r = float(event[0, 'BField']) << u.uT)
+
+            try:
+                latitude = event[0, 'Latitude'].decode("utf-8") << u.deg
+                longitude = event[0, 'Longitude'].decode("utf-8") << u.deg
+                declination = event[0, 'BFieldDecl'] << u.deg
+                obstime = datetime.strptime(event[0, 'Date'].decode("utf-8").strip(),
+                                            '%d/%b/%Y')
+            except ValueError:
+                frame = None
+            else:
+                origin = ECEF(latitude, longitude, site_height * u.m, # Custom site_height
+                              representation_type='geodetic')
+                frame = LTP(location=origin, orientation='NWU',
+                            declination=declination, obstime=obstime)
+
+            my_core = event[0, 'CorePosition'] + np.array([0, 0, site_height])
+
+            return ZhairesShower(
+                energy = float(event[0, 'Energy']) << u.EeV,
+                zenith = (180 - float(event[0, 'Zenith'])) << u.deg,
+                azimuth =(180 - float(event[0, 'Azimuth'])) << u.deg,
+                primary = primary,
+
+                frame = frame,
+                core = CartesianRepresentation(*my_core, unit='m'),
+                geomagnet = geomagnet.represent_as(CartesianRepresentation),
+                maximum = CartesianRepresentation(*event[0, 'XmaxPosition'],
+                                                  unit='m'),
+
+                fields = fields
+            )
+
     def simulation_inspect(self):
         """
         Outputs theta, phi, Energy and the core position.
