@@ -1370,6 +1370,8 @@ class AERA:
         for ant in antenna_list:
             if ant.fluence <= self.f_thres:
                 continue
+            elif ant.sigma_f == 0:
+                continue
 
             if(self.bool_EarlyLate and ant.wEarlyLate is not None):
                 weight = ant.wEarlyLate
@@ -1422,7 +1424,7 @@ class AERA:
 
         # amplitude guess
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
-        init_A = np.max(fluence_arr)
+        init_A = np.mean(fluence_arr)
     
         # core position guess
         #core_index = np.where(fluence_arr==np.max(fluence_arr))[0][0]
@@ -1442,6 +1444,7 @@ class AERA:
             par_fit = [init_A,init_sigma]
             res = sp.optimize.minimize(AERA.aeraChi2,par_fit,args=(Cs,self),method='Nelder-Mead')
             resx = np.append(res.x,Cs)
+            Cs_aera = Cs
 
         chi2min = AERA.aeraChi2(resx,Cs,self)
         ndof = fluence_arr[fluence_arr>self.f_thres].size - res.x.size
