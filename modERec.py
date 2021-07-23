@@ -661,8 +661,8 @@ class EnergyRec:
             self.model_fit(self.simulation)
         
         else:
-            print("ERROR: ",self.simulation," not found!")
-            sys.exit()
+            message = "ERROR: " + self.simulation + " not found!"
+            raise ValueError(message)
 
     @staticmethod
     def custom_from_datafile(path: Path, site_height = 0) -> ZhairesShower:
@@ -863,8 +863,8 @@ class EnergyRec:
             Ev = self.shower.traces_proj[id].z.to("V/m").value
             traces  = np.c_[time,EvB,EvvB,Ev]
         else:
-            print("ERROR: id = ",id," is out of the antenna array bounds!")
-            sys.exit()
+            message = "ERROR: id = " + str(id) + " is out of the antenna array bounds!"
+            raise ValueError(message)
 
         # Check if peak is within the threshold range
         peak = np.max(np.abs(traces[:,1:4]))
@@ -907,7 +907,7 @@ class EnergyRec:
         """
         n_ant = len(self.GRANDshower.fields)
     
-        step = int(n_ant/10)
+        step = round(n_ant/10)
 
         try:
             antenna_list = self.antenna.values()
@@ -1205,16 +1205,16 @@ class EnergyRec:
         if(filename==""):
             fluence_arr = np.array([ant.fluence for ant in antenna_list])
             if all(f is None for f in fluence_arr):
-                print("--> fluence_arr == None. instance.Eval_fluences() has to be run!")
-                sys.exit()
+                raise ValueError("--> fluence_arr == None. instance.Eval_fluences() has to be run!")
             
             if(self.bool_EarlyLate and self.printLevel):
                 print("--> Early-late correction will be applied!")
         
         else:
             if not Path(filename).is_file():
-                print("ERROR: file ",filename," not found!")
-                sys.exit()
+                message = "ERROR: file " + filename + " not found!"
+                raise ValueError(message)
+
             datafile = open(filename,'r')
             antpos_fluences = np.loadtxt(datafile)
             datafile.close()
