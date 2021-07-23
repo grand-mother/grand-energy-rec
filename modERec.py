@@ -904,7 +904,6 @@ class EnergyRec:
         n_ant = len(self.GRANDshower.fields)
     
         step = int(n_ant/10)
-        counter = 0
 
         try:
             antenna_list = self.antenna.values()
@@ -914,10 +913,10 @@ class EnergyRec:
         if(self.printLevel>0):
             print("* Evaluating the fluences:")
             print("--> 0 % complete;")
-        for ant in antenna_list:
+        for counter, ant in enumerate(antenna_list):
             #Read traces or voltages
-            if ((ant.ID+1)%step == 0 and self.printLevel > 0):
-                print("-->",int((ant.ID+1)/(10*step)*100),"% complete;")
+            if (step>0 and (counter+1)%step == 0 and self.printLevel > 0):
+                print("-->",int((counter+1)/(10*step)*100),"% complete;")
 
             self.process_antenna(ant.ID)
             if ant.fluence > 0:
