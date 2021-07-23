@@ -39,6 +39,7 @@ import astropy.units as u
 from astropy.coordinates import CartesianRepresentation
 from grand import Rotation
 
+# for custom_from_datafile
 import h5py
 from grand import ECEF, LTP
 from grand.simulation.shower.generic import FieldsCollection, CollectionEntry
@@ -47,6 +48,8 @@ from grand.simulation import ElectricField
 from grand.simulation.pdg import ParticleCode
 from astropy.coordinates import PhysicsSphericalRepresentation
 from datetime import datetime
+
+import sys
 
 class Antenna:
     """
@@ -657,7 +660,7 @@ class EnergyRec:
         
         else:
             print("ERROR: ",self.simulation," not found!")
-            raise SystemExit("Stop right there!")
+            sys.exit()
 
     @staticmethod
     def custom_from_datafile(path: Path, site_height = 0) -> ZhairesShower:
@@ -857,7 +860,7 @@ class EnergyRec:
             traces  = np.c_[time,EvB,EvvB,Ev]
         else:
             print("ERROR: id = ",id," is out of the antenna array bounds!")
-            exit()
+            sys.exit()
 
         # Check if peak is within the threshold range
         peak = np.max(np.abs(traces[:,1:4]))
@@ -903,10 +906,15 @@ class EnergyRec:
         step = int(n_ant/10)
         counter = 0
 
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
         if(self.printLevel>0):
             print("* Evaluating the fluences:")
             print("--> 0 % complete;")
-        for ant in self.antenna:
+        for ant in antenna_list:
             #Read traces or voltages
             if ((ant.ID+1)%step == 0 and self.printLevel > 0):
                 print("-->",int((ant.ID+1)/(10*step)*100),"% complete;")
@@ -948,8 +956,12 @@ class EnergyRec:
             Parametrized fluence array.
         """
 
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
         
-        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        fluence_arr = np.array([ant.fluence for ant in antenna_list])
 
         n_ant = len(self.GRANDshower.fields)
         fluence_par = np.zeros(n_ant)
@@ -958,7 +970,7 @@ class EnergyRec:
         d_Xmax = np.linalg.norm((self.GRANDshower.core - self.GRANDshower.maximum).xyz.value)
         rho_Xmax = SymFit.rho(d_Xmax,-self.shower.ev)
 
-        for ant in self.antenna:
+        for ant in antenna_list:
             if(self.bool_EarlyLate and ant.wEarlyLate is not None):
                 weight = ant.wEarlyLate
             else:
@@ -1053,11 +1065,16 @@ class EnergyRec:
  
         n_ant = len(self.GRANDshower.fields)
 
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
         r_ant = np.zeros((n_ant,3))
         for key, value in self.GRANDshower.fields.items():
             r_ant[key]=value.electric.r.xyz.value
     
-        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        fluence_arr = np.array([ant.fluence for ant in antenna_list])
         sel = np.where(fluence_arr>0)
     
         fig= plt.figure(figsize=(10,7))
@@ -1082,7 +1099,12 @@ class EnergyRec:
             A class instance.
         """
 
-        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
+        fluence_arr = np.array([ant.fluence for ant in antenna_list])
         sel = np.where(fluence_arr>0)
 
         signal = np.c_[self.shower.r_proj[sel],fluence_arr[sel]]
@@ -1151,13 +1173,18 @@ class EnergyRec:
         
         """ 
 
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
         if(self.printLevel or filename!=""):
             print("* Model fit:")
         if(filename==""):
-            fluence_arr = np.array([ant.fluence for ant in self.antenna])
+            fluence_arr = np.array([ant.fluence for ant in antenna_list])
             if all(f is None for f in fluence_arr):
                 print("--> fluence_arr == None. instance.Eval_fluences() has to be run!")
-                exit()
+                sys.exit()
             
             if(self.bool_EarlyLate and self.printLevel):
                 print("--> Early-late correction will be applied!")
@@ -1165,7 +1192,7 @@ class EnergyRec:
         else:
             if not Path(filename).is_file():
                 print("ERROR: file ",filename," not found!")
-                raise SystemExit("Stop right there!")
+                sys.exit()
             datafile = open(filename,'r')
             antpos_fluences = np.loadtxt(datafile)
             datafile.close()
@@ -1212,7 +1239,12 @@ class EnergyRec:
         self.shower.d_Xmax = np.linalg.norm(rXmax)
         R_0 = np.linalg.norm(rXmax)
 
-        for ant in self.antenna:
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
+        for ant in antenna_list:
             r_ant = ant.r_proj - self.shower.r_Core_proj
             R = R_0 + r_ant[2] ## R_ant[2] is the distance from the core projected into ev
             ant.wEarlyLate = R_0/R        
@@ -1307,8 +1339,13 @@ class AERA:
         Chi2 = 0.
         i=0
         
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
         Shower.r_Core_proj = self.shower.r_Core_proj ## Using class definition as a global variable!!
-        for ant in self.antenna:
+        for ant in antenna_list:
             if ant.fluence <= self.f_thres:
                 continue
 
@@ -1356,8 +1393,13 @@ class AERA:
 
         my_evB = np.array([1,0])
     
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
         # amplitude guess
-        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        fluence_arr = np.array([ant.fluence for ant in antenna_list])
         init_A = np.max(fluence_arr)
     
         # core position guess
@@ -1426,6 +1468,11 @@ class AERA:
 
         my_evB = np.array([1,0])
         
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
         A = self.bestfit[0]
         sigma = self.bestfit[1]
         rcore = self.shower.r_Core_proj[0:2]
@@ -1437,9 +1484,9 @@ class AERA:
 
         par = [A,sigma,Cs[0],Cs[1],Cs[2],Cs[3],Cs[4]]
 
-        fluence_arr = np.array([ant.fluence for ant in self.antenna])
+        fluence_arr = np.array([ant.fluence for ant in antenna_list])
         if(self.bool_EarlyLate):
-            weight =  np.array([ant.wEarlyLate for ant in self.antenna])
+            weight =  np.array([ant.wEarlyLate for ant in antenna_list])
             if all(w is None for w in weight):
                 weight = np.full(len(fluence_arr),1)
         else:
@@ -1448,7 +1495,7 @@ class AERA:
         weight = weight[sel]
         fluence_arr=fluence_arr[sel]/(weight**2)
 
-        r_proj = np.array([ant.r_proj for ant in self.antenna])
+        r_proj = np.array([ant.r_proj for ant in antenna_list])
         x_proj = r_proj[:,0][sel]*weight
         y_proj = r_proj[:,1][sel]*weight
         
@@ -1504,7 +1551,7 @@ class AERA:
         
         fig_ldf = plt.figure(figsize=[14,5])
         plt.subplot(121)
-        yerr = np.array([ant.sigma_f for ant in self.antenna])[sel]
+        yerr = np.array([ant.sigma_f for ant in antenna_list])[sel]
         plt.errorbar(temp_dist,fluence_arr,yerr=yerr,fmt='.')
         plt.xlabel("Distance from core in m")
         plt.ylabel(r"Fluence in eV/m$^2$")
