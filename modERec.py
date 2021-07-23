@@ -51,6 +51,8 @@ from datetime import datetime
 
 import sys
 
+from astropy.table import Table
+
 class Antenna:
     """
     A class for the antenna signal processing.
@@ -846,6 +848,26 @@ class EnergyRec:
             A class instance.
         
         """
+
+        if self.simulation_type == "custom":
+            shower_frame = self.GRANDshower.shower_frame()
+            RunInfo = Table.read(self.simulation, path="RunInfo")
+            EventName = RunInfo["EventName"][0]
+            AntennaFluenceInfo = Table.read(self.simulation, EventName + "/AntennaFluenceInfo")
+            for ant in AntennaFluenceInfo:
+                idx = ant['ID']
+                self.antenna[idx].fluence = ant["Fluence_efield"]
+
+                fluence_site = CartesianRepresentation(
+                    ant["Fluencex_efield"], ant["Fluencex_efield"], ant["Fluencex_efield"], unit=u.eV/u.m**2)
+                fluence_shower = self.GRANDshower.transform(fluence_site,shower_frame).cartesian.xyz.value
+
+                self.antenna[idx].fluence_geo = -1
+                self.antenna[idx].fluence_ce = -1
+                self.antenna[idx].fluence_evB = np.abs(fluence_shower[0])
+                self.antenna[idx].fluence_evvB = np.abs(fluence_shower[1])
+            return
+
         if(id<len(self.GRANDshower.fields)):
             time = self.GRANDshower.fields[id].electric.t.to("ns").value
             
