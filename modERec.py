@@ -1157,7 +1157,7 @@ class EnergyRec:
         traces_proj = {}
 
         for key, value in self.GRANDshower.fields.items():
-            r_ant = value.electric.r #- self.GRANDshower.core
+            r_ant = value.electric.r - self.GRANDshower.core
             self.antenna[key].r_proj = self.GRANDshower.transform(r_ant,shower_frame).cartesian.xyz.value
 
             if self.simulation_type != "custom":
@@ -1166,7 +1166,7 @@ class EnergyRec:
             else:
                 traces_proj[key] = None
 
-        core = self.GRANDshower.core
+        core = self.GRANDshower.core - self.GRANDshower.core
         r_Core_proj = self.GRANDshower.transform(core,shower_frame).cartesian.xyz
 
         self.shower.r_Core_proj = r_Core_proj.value
