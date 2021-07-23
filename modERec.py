@@ -722,7 +722,8 @@ class EnergyRec:
                 frame = LTP(location=origin, orientation='NWU',
                             declination=declination, obstime=obstime)
 
-            my_core = event[0, 'CorePosition'] + np.array([0, 0, site_height])
+            #my_core = event[0, 'CorePosition'] + np.array([0, 0, site_height])
+            my_core = np.array([0, 0, site_height])
 
             return ZhairesShower(
                 energy = float(event[0, 'Energy']) << u.EeV,
@@ -859,7 +860,7 @@ class EnergyRec:
                 self.antenna[idx].fluence = ant["Fluence_efield"]
 
                 fluence_site = CartesianRepresentation(
-                    ant["Fluencex_efield"], ant["Fluencex_efield"], ant["Fluencex_efield"], unit=u.eV/u.m**2)
+                    ant["Fluencex_efield"], ant["Fluencey_efield"], ant["Fluencez_efield"], unit=u.eV/u.m**2)
                 fluence_shower = self.GRANDshower.transform(fluence_site,shower_frame).cartesian.xyz.value
 
                 self.antenna[idx].fluence_geo = -1
@@ -1517,8 +1518,8 @@ class AERA:
         fluence_arr=fluence_arr[sel]/(weight**2)
 
         r_proj = np.array([ant.r_proj for ant in antenna_list])
-        x_proj = r_proj[:,0][sel]*weight
-        y_proj = r_proj[:,1][sel]*weight
+        x_proj = r_proj[:,0][sel]*weight - rcore[0]
+        y_proj = r_proj[:,1][sel]*weight - rcore[1]
         
         delta_X = np.max(x_proj) - np.min(x_proj)
         delta_Y = np.max(y_proj) - np.min(y_proj)
@@ -1539,6 +1540,8 @@ class AERA:
 
         Z=np.zeros((yy.size,xx.size))
 
+        Shower.r_Core_proj = np.array([0, 0, 0]) # warning: global variable
+
         for i in range(yy.size):
             for j in range(xx.size):
                 Z[i,j] = AERA.aeraLDF(par, None, my_evB, X[i,j], Y[i,j]) # evaluation of the function on the grid
@@ -1554,7 +1557,10 @@ class AERA:
         plt.xlabel(r'distante along $\vec{v}\times\vec{B}$ (in m)')
         plt.ylabel(r'distante along $\vec{v}\times\vec{v}\times\vec{B}$ (in m)')
 
-        plt.plot(rcore[0], rcore[1],'w*')
+        plt.plot(0, 0,'w*')
+
+        plt.xlim(minXAxis,maxXAxis)
+        plt.ylim(minYAxis,maxYAxis)
 
         plt.subplot(122)
         plt.scatter(x_proj, y_proj, c=fluence_arr, cmap='viridis', s = 100, edgecolors=(1,1,1,0.2))
@@ -1565,8 +1571,8 @@ class AERA:
         plt.ylim(minYAxis,maxYAxis)
         
         # 1D LDF
-        temp_x = x_proj - rcore[0]
-        temp_y = y_proj - rcore[1]
+        temp_x = x_proj
+        temp_y = y_proj
 
         temp_dist = np.sqrt(temp_x*temp_x+temp_y*temp_y)
         
