@@ -658,7 +658,7 @@ class EnergyRec:
                 print("\n")
 
         elif Path(self.simulation).is_file():
-            self.model_fit(simulation)
+            self.model_fit(self.simulation)
         
         else:
             print("ERROR: ",self.simulation," not found!")
@@ -717,7 +717,7 @@ class EnergyRec:
             except ValueError:
                 frame = None
             else:
-                origin = ECEF(latitude, longitude, site_height * u.m, # Custom site_height
+                origin = ECEF(latitude, longitude, 0 * u.m, # Site height = 0
                               representation_type='geodetic')
                 frame = LTP(location=origin, orientation='NWU',
                             declination=declination, obstime=obstime)
@@ -850,25 +850,6 @@ class EnergyRec:
         
         """
 
-        if self.simulation_type == "custom":
-            shower_frame = self.GRANDshower.shower_frame()
-            RunInfo = Table.read(self.simulation, path="RunInfo")
-            EventName = RunInfo["EventName"][0]
-            AntennaFluenceInfo = Table.read(self.simulation, EventName + "/AntennaFluenceInfo")
-            for ant in AntennaFluenceInfo:
-                idx = ant['ID']
-                self.antenna[idx].fluence = ant["Fluence_efield"]
-
-                fluence_site = CartesianRepresentation(
-                    ant["Fluencex_efield"], ant["Fluencey_efield"], ant["Fluencez_efield"], unit=u.eV/u.m**2)
-                fluence_shower = self.GRANDshower.transform(fluence_site,shower_frame).cartesian.xyz.value
-
-                self.antenna[idx].fluence_geo = -1
-                self.antenna[idx].fluence_ce = -1
-                self.antenna[idx].fluence_evB = np.abs(fluence_shower[0])
-                self.antenna[idx].fluence_evvB = np.abs(fluence_shower[1])
-            return
-
         if(id<len(self.GRANDshower.fields)):
             time = self.GRANDshower.fields[id].electric.t.to("ns").value
             
@@ -933,6 +914,24 @@ class EnergyRec:
         except:
             antenna_list = self.antenna
 
+        if self.simulation_type == "custom":
+            shower_frame = self.GRANDshower.shower_frame()
+            RunInfo = Table.read(self.simulation, path="RunInfo")
+            EventName = RunInfo["EventName"][0]
+            AntennaFluenceInfo = Table.read(self.simulation, EventName + "/AntennaFluenceInfo")
+            for ant in AntennaFluenceInfo:
+                idx = ant['ID']
+                self.antenna[idx].fluence = ant["Fluence_efield"]
+
+                fluence_site = CartesianRepresentation(
+                    ant["Fluencex_efield"], ant["Fluencey_efield"], ant["Fluencez_efield"], unit=u.eV/u.m**2)
+                fluence_shower = self.GRANDshower.transform(fluence_site,shower_frame).cartesian.xyz.value
+
+                self.antenna[idx].fluence_geo = -1
+                self.antenna[idx].fluence_ce = -1
+                self.antenna[idx].fluence_evB = np.abs(fluence_shower[0])
+                self.antenna[idx].fluence_evvB = np.abs(fluence_shower[1])
+
         if(self.printLevel>0):
             print("* Evaluating the fluences:")
             print("--> 0 % complete;")
@@ -941,7 +940,8 @@ class EnergyRec:
             if (step>0 and (counter+1)%step == 0 and self.printLevel > 0):
                 print("-->",int((counter+1)/(10*step)*100),"% complete;")
 
-            self.process_antenna(ant.ID)
+            if self.simulation_type != "custom":
+                self.process_antenna(ant.ID)
             if ant.fluence > 0:
                 ant.sigma_f = np.sqrt(ant.fluence)
 
