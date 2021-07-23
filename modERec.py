@@ -1092,8 +1092,8 @@ class EnergyRec:
             antenna_list = self.antenna
 
         r_ant = np.zeros((n_ant,3))
-        for key, value in self.GRANDshower.fields.items():
-            r_ant[key]=value.electric.r.xyz.value
+        for idx, (key, value) in enumerate(self.GRANDshower.fields.items()):
+            r_ant[idx]=value.electric.r.xyz.value
     
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
         sel = np.where(fluence_arr>0)
