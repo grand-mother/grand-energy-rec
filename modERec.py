@@ -985,8 +985,7 @@ class EnergyRec:
         
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
 
-        n_ant = len(self.GRANDshower.fields)
-        fluence_par = np.zeros(n_ant)
+        fluence_par = {}
         eB = self.shower.eB
         alpha = np.arccos(np.dot(self.shower.ev,eB))
         d_Xmax = np.linalg.norm((self.GRANDshower.core - self.GRANDshower.maximum).xyz.value)
@@ -1367,6 +1366,8 @@ class AERA:
             antenna_list = self.antenna
 
         Shower.r_Core_proj = self.shower.r_Core_proj ## Using class definition as a global variable!!
+
+        max_ldf = -np.inf
         for ant in antenna_list:
             if ant.fluence <= self.f_thres:
                 continue
@@ -1382,8 +1383,16 @@ class AERA:
             y = ant.r_proj[1]*weight
             f = ant.fluence/(weight**2)
             sigma = ant.sigma_f/(weight**2)
-            Chi2 = Chi2 + ((AERA.aeraLDF(par_fit,Cs, np.array([1,0]), x, y)-f)/sigma)**2
-            i = i + 1 
+            ldf_val = AERA.aeraLDF(par_fit,Cs, np.array([1,0]), x, y)
+            if ldf_val > max_ldf:
+                max_ldf = ldf_val
+                max_r_proj = ant.r_proj
+            Chi2 = Chi2 + ((ldf_val-f)/sigma)**2
+            i = i + 1
+        
+        if np.linalg.norm(max_r_proj) < 0.1*par_fit[1]:
+            Chi2 = np.inf
+
         return Chi2
 
     @staticmethod
@@ -1424,7 +1433,8 @@ class AERA:
 
         # amplitude guess
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
-        init_A = np.mean(fluence_arr)
+        sel = np.where(fluence_arr > np.mean(fluence_arr) + np.std(fluence_arr))
+        init_A = 2*np.mean(fluence_arr[sel])
     
         # core position guess
         #core_index = np.where(fluence_arr==np.max(fluence_arr))[0][0]
@@ -1432,9 +1442,12 @@ class AERA:
         #init_yCore =  0 #antpos_proj[core_index,1]
     
         # sigma guess
-        init_sigma = 300
+        distances = np.array([np.linalg.norm(ant.r_proj) for ant in antenna_list])
         
-        Cs_aera = [0.5,-10,20,16,0.01]
+        init_sigma = 2*np.mean(distances[sel])        
+        
+        #Cs_aera = [0.5,-10,20,16,0.01]
+        Cs_aera = [0.9, 0, 0, 6, 0.003]
         if Cs is None:
             par_fit = [init_A,init_sigma,Cs_aera[0],Cs_aera[1],Cs_aera[2],Cs_aera[3],Cs_aera[4]]
             res = sp.optimize.minimize(AERA.aeraChi2,par_fit,args=(Cs,self),method='Nelder-Mead')
