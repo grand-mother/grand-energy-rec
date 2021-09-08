@@ -619,8 +619,22 @@ class EnergyRec:
 
                 self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)
 
-            elif self.simulation_type == "custom":
-                self.GRANDshower = self.custom_from_datafile(self.simulation, self.site_height)
+            elif self.simulation_type == "custom" or self.simulation_type == "starshape":
+                self.GRANDshower, bool_traces = self.custom_from_datafile(self.simulation, self.site_height)
+                
+                if(bool_traces):
+                    # Fixing Aires to GRAND conventions
+                    for ant in range(len(self.GRANDshower.fields)):
+                        self.GRANDshower.fields[ant].electric.E=self.GRANDshower.fields[ant].electric.E[0]
+                        from astropy.coordinates.matrix_utilities import rotation_matrix
+                        rotation = rotation_matrix(-0 * u.deg, axis='z')
+
+                        self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[ant].electric.E.transform(rotation)
+
+                        self.GRANDshower.fields[ant].electric.r = self.GRANDshower.fields[ant].electric.r.transform(rotation)
+
+                    if self.simulation_type == "custom":
+                        self.simulation_type == "zhaires"
 
             if Path(self.simulation).is_dir():
                 self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)   
@@ -674,28 +688,36 @@ class EnergyRec:
                 if not name.startswith('RunInfo'):
                     break
 
+            bool_traces = True
             event = fd[f'{name}/EventInfo']
             antennas = fd[f'{name}/AntennaInfo']
-            #traces = fd[f'{name}/AntennaTraces']
+            try:
+                traces = fd[f'{name}/AntennaTraces']
+            except:
+                bool_traces = False
 
             fields = FieldsCollection()
 
-            #pattern = re.compile('([0-9]+)$')
+            pattern = re.compile('([0-9]+)$')
             for antenna, x, y, z, *_ in antennas:
-                #tag = tag.decode()
-                #antenna = int(pattern.search(tag)[1])
                 r = CartesianRepresentation(
                     float(x), float(y), float(z), unit=u.m)
-                #tmp = traces[f'{tag}/efield'][:]
-                #efield = tmp.view('f4').reshape(tmp.shape + (-1,))
-                #t = numpy.asarray(efield[:,0], 'f8') << u.ns
-                #Ex = numpy.asarray(efield[:,1], 'f8') << u.uV / u.m
-                #Ey = numpy.asarray(efield[:,2], 'f8') << u.uV / u.m
-                #Ez = numpy.asarray(efield[:,3], 'f8') << u.uV / u.m
-                #E = CartesianRepresentation(Ex, Ey, Ez, copy=False),
+                if(bool_traces):
+                    tag = antenna.decode()
+                    antenna = int(pattern.search(tag)[1])
+                    tmp = traces[f'{tag}/efield'][:]
+                    efield = tmp.view('f4').reshape(tmp.shape + (-1,))
+                    t = np.asarray(efield[:,0], 'f8') << u.ns
+                    Ex = np.asarray(efield[:,1], 'f8') << u.uV / u.m
+                    Ey = np.asarray(efield[:,2], 'f8') << u.uV / u.m
+                    Ez = np.asarray(efield[:,3], 'f8') << u.uV / u.m
+                    E = CartesianRepresentation(Ex, Ey, Ez, copy=False),
+                else:
+                    t = None
+                    E = None
 
                 fields[antenna] = CollectionEntry(
-                    electric=ElectricField(t = None, E = None, r = r))
+                    electric=ElectricField(t = t, E = E, r = r))
 
             primary = {
                 'Fe^56'  : ParticleCode.IRON,
@@ -738,7 +760,7 @@ class EnergyRec:
                                                   unit='m'),
 
                 fields = fields
-            )
+            ), bool_traces
 
     def simulation_inspect(self):
         """
@@ -913,7 +935,7 @@ class EnergyRec:
             antenna_list = self.antenna.values()
         except:
             antenna_list = self.antenna
-
+            
         if self.simulation_type == "custom":
             shower_frame = self.GRANDshower.shower_frame()
             RunInfo = Table.read(self.simulation, path="RunInfo")
@@ -931,6 +953,7 @@ class EnergyRec:
                 self.antenna[idx].fluence_ce = -1
                 self.antenna[idx].fluence_evB = np.abs(fluence_shower[0])
                 self.antenna[idx].fluence_evvB = np.abs(fluence_shower[1])
+                self.antenna[idx].fluence = np.linalg.norm(fluence_shower)
 
         if(self.printLevel>0):
             print("* Evaluating the fluences:")
@@ -949,9 +972,14 @@ class EnergyRec:
                 r_plane =ant.r_proj[0:2]
                 cosPhi = np.dot(r_plane,np.array([1,0]))/np.linalg.norm(r_plane)
                 sinPhi = np.sqrt(1-cosPhi*cosPhi)
-                my_fluence_geo = np.sqrt(ant.fluence_evB)-(cosPhi/sinPhi)*np.sqrt(ant.fluence_evvB)
-                ant.fluence_geo = my_fluence_geo*my_fluence_geo
-                ant.fluence_ce = ant.fluence_evvB/(sinPhi*sinPhi)
+                
+                if sinPhi >=0.2: # Exclude stations too close to the v\times B direction 
+                    my_fluence_geo = np.sqrt(ant.fluence_evB)-(cosPhi/sinPhi)*np.sqrt(ant.fluence_evvB)
+                    ant.fluence_geo = my_fluence_geo*my_fluence_geo
+                    ant.fluence_ce = ant.fluence_evvB/(sinPhi*sinPhi)
+                else:
+                    ant.fluence_geo = -1
+                    ant.fluence_ce = -1    
 
             else:
                 ant.fluence_geo = -1
@@ -1157,6 +1185,9 @@ class EnergyRec:
 
         for key, value in self.GRANDshower.fields.items():
             r_ant = value.electric.r - self.GRANDshower.core
+            #if self.simulation_type == "starshape":
+            #    self.antenna[key].r_proj = r_ant.xyz.value
+            #else:    
             self.antenna[key].r_proj = self.GRANDshower.transform(r_ant,shower_frame).cartesian.xyz.value
 
             if self.simulation_type != "custom":
@@ -1315,6 +1346,12 @@ class AERA:
             C2 = par_fit[4]
             C3 = par_fit[5]
             C4 = par_fit[6]
+        elif len(par_fit)==6:
+            C0 = Cs[0]
+            C1 = par_fit[2]
+            C2 = par_fit[3]
+            C3 = par_fit[4]
+            C4 = par_fit[5]
         else:
             C0 = Cs[0]
             C1 = Cs[1]
@@ -1331,7 +1368,9 @@ class AERA:
         
         result = A*(partA - C0*partB)
         if(A<0 or sigma<0 or C0<0 or C3<0 or C4<0):
-            result = 1e50
+            result = np.inf
+        if result < 0:
+            result = 0.
         return result
     
     @staticmethod
@@ -1360,12 +1399,37 @@ class AERA:
         Chi2 = 0.
         i=0
         
+        # if len(par_fit)==7:
+        #     sigma = par_fit[1]
+        #     C0 = par_fit[2]
+        #     C3 = par_fit[5]
+        #     C4 = par_fit[6]
+
+        #     if(sigma**2 - C0*(C3**2)*np.exp(2*C4*sigma) < 0):
+        #         return np.inf
+        # elif len(par_fit)==6:
+        #     sigma = par_fit[1]
+        #     C0 = Cs[0]
+        #     C3 = par_fit[4]
+        #     C4 = par_fit[5]
+
+        #     if(sigma**2 - C0*(C3**2)*np.exp(2*C4*sigma) < 0):
+        #         return np.inf
+
         try:
             antenna_list = self.antenna.values()
         except:
             antenna_list = self.antenna
 
         Shower.r_Core_proj = self.shower.r_Core_proj ## Using class definition as a global variable!!
+
+        # check_dist_ldf = np.linspace(0,2*sigma,100)
+        # check_ldf = []
+        # for check_dist in check_dist_ldf:
+        #     check_ldf.append(AERA.aeraLDF(par_fit,Cs, np.array([1,0]), check_dist, 0))
+
+        # if np.sum(check_ldf[0:30]) > np.sum(check_ldf[30:None]): # try to prevent maximum at (0,0)
+        #     return np.inf
 
         max_ldf = -np.inf
         for ant in antenna_list:
@@ -1389,9 +1453,6 @@ class AERA:
                 max_r_proj = ant.r_proj
             Chi2 = Chi2 + ((ldf_val-f)/sigma)**2
             i = i + 1
-        
-        if np.linalg.norm(max_r_proj) < 0.1*par_fit[1]:
-            Chi2 = np.inf
 
         return Chi2
 
@@ -1442,9 +1503,9 @@ class AERA:
         #init_yCore =  0 #antpos_proj[core_index,1]
     
         # sigma guess
-        distances = np.array([np.linalg.norm(ant.r_proj) for ant in antenna_list])
+        distances = np.array([np.linalg.norm(ant.r_proj[0:2]) for ant in antenna_list])
         
-        init_sigma = 2*np.mean(distances[sel])        
+        init_sigma = np.mean(distances[sel])        
         
         #Cs_aera = [0.5,-10,20,16,0.01]
         Cs_aera = [0.9, 0, 0, 6, 0.003]
@@ -1452,7 +1513,11 @@ class AERA:
             par_fit = [init_A,init_sigma,Cs_aera[0],Cs_aera[1],Cs_aera[2],Cs_aera[3],Cs_aera[4]]
             res = sp.optimize.minimize(AERA.aeraChi2,par_fit,args=(Cs,self),method='Nelder-Mead')
             resx = res.x
-
+        elif len(Cs) == 1:
+            par_fit = [init_A,init_sigma,Cs_aera[1],Cs_aera[2],Cs_aera[3],Cs_aera[4]]
+            res = sp.optimize.minimize(AERA.aeraChi2,par_fit,args=(Cs,self),method='Nelder-Mead')
+            resx = np.insert(res.x,2,Cs[0])
+            Cs = None
         else:
             par_fit = [init_A,init_sigma]
             res = sp.optimize.minimize(AERA.aeraChi2,par_fit,args=(Cs,self),method='Nelder-Mead')
@@ -1705,7 +1770,7 @@ class SymFit:
 
         H = 10.4 # in km
         rho_0 = 1.225 # in kg/m^3
-        site_height = 2.8 # in km
+        site_height = EnergyRec.site_height/1000 # in km (Hard Coded Using Class Definition!!!)
 
         return rho_0*np.exp(-(site_height+height)/H)
 
@@ -1831,7 +1896,7 @@ class SymFit:
         for i in range(f_par.size):
             LDF = SymFit.SymLDF(par,r[sel][i])
             #if a_arr[i] < 1:
-            Chi2 = Chi2 + (f_par[i] -LDF)**2
+            Chi2 = Chi2 + ((f_par[i] -LDF)/np.sqrt(f_par[i]))**2
 
         return Chi2
 
@@ -1855,21 +1920,23 @@ class SymFit:
         """
 
         # Estimating the parameters
-        r0 = np.min(r)
-        i_d0 = np.where(r==r0)[0][0]
-        f0 = fluence_par[i_d0]
+        idx   = np.argsort(r)
+        sort_dist = np.array(r)[idx]
+        sort_f = np.array(fluence_par)[idx]
 
-        r1 =np.max(r[r<300])
-        i_d1 = np.where(r==r1)[0][0]
-        f1 = fluence_par[i_d1]
+        n_ant = len(sort_dist)
+        r0 = sort_dist[0]
+        f0 = sort_f[0]
 
-        r2 =np.max(r[r<600])
-        i_d2 = np.where(r==r2)[0][0]
-        f2 = fluence_par[i_d2]
-
-        r3 =np.max(r[r<900])
-        i_d3 = np.where(r==r3)[0][0]
-        f3 = fluence_par[i_d3]
+        idx_max = np.where(sort_f == np.max(sort_f))[0][0]
+        r1 = sort_dist[idx_max]
+        f1 = sort_f[idx_max]
+        #r2 = sort_dist[(idx_max+ n_ant)//2] // Did not work for ldfs 'clustered' (ex. three well sampled distances)
+        #f2 = sort_f[(idx_max+ n_ant)//2]
+        r3 = sort_dist[-1]
+        f3 = sort_f[-1]
+        r2 = (r1+r3)/2
+        f2 = (f1+f3)/2
 
         a = np.array([
             [1,-r0,-r0**2,-r0**3],
