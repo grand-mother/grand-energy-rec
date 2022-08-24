@@ -47,6 +47,10 @@ from scipy import stats
 from scipy.fftpack import fft, ifft
 from scipy.signal import hilbert
 
+import ROOT
+event_lib = "../../MachineLearning/EnergyRec/Event/libSimuEvent.so"
+ROOT.gSystem.Load(event_lib)
+
 
 class Antenna:
     """
@@ -607,6 +611,8 @@ class EnergyRec:
     GRANDshower = None
     ## The height of the site
     site_height = 0
+    ## For PengXiong files with more than one event
+    evt_num = 0
     ## A print level variable
     printLevel = 0
 
@@ -624,7 +630,7 @@ class EnergyRec:
         self.simulation = simulation
         self.shower = Shower()
 
-        if Path(self.simulation).is_dir() or self.simulation.endswith("hdf5"):
+        if Path(self.simulation).is_dir() or self.simulation.endswith("hdf5") or self.simulation.endswith("root"):
 
             if self.simulation_type == "coreas":
                 self.GRANDshower = ShowerEvent.load(self.simulation)
@@ -688,6 +694,15 @@ class EnergyRec:
 
                     if self.simulation_type == "custom":
                         self.simulation_type == "zhaires"
+
+            elif (self.simulation_type == "pengxiong"):
+                self.GRANDshower, bool_traces = self.custom_from_pengxiong(
+                    self.simulation, self.site_height, self.evt_num
+                )
+                for ant in range(len(self.GRANDshower.fields)):
+                    self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
+                        ant
+                    ].electric.E[0]
 
             if Path(self.simulation).is_dir():
                 self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)
@@ -824,6 +839,122 @@ class EnergyRec:
                 ),
                 bool_traces,
             )
+
+
+    @staticmethod
+    def custom_from_pengxiong(path: Path, site_height=0, evt=0) -> ZhairesShower:
+        rootFile = ROOT.TFile(path)
+
+        # getting the trees
+        treeSimu = rootFile.Get("SimuCollection");
+        treeEfield = rootFile.Get("EfieldCollection");
+        treeSignal = rootFile.Get("SignalCollection");
+
+        #setting the object of the classes where Im going to instantiate the trees
+        branch_SimShower = ROOT.SimShower()
+        branch_SimEfield = ROOT.SimEfield()
+        branch_SimSignal = ROOT.SimSignal()
+
+        #setting the adresses of the branches on the created objects of the specific classes
+        treeSimu.SetBranchAddress("SimShowerBranch", branch_SimShower)
+        treeEfield.SetBranchAddress("SimEfieldBranch", branch_SimEfield)
+        treeSignal.SetBranchAddress("SimSignalBranch", branch_SimSignal)
+
+        # read the event
+        treeSimu.GetEntry(evt)
+        treeEfield.GetEntry(evt)
+        treeSignal.GetEntry(evt)
+
+        # TREE SimShower------------------------------------------------------
+        shower_energy = branch_SimShower.Get_primary_Energy()
+        shower_azimuth = branch_SimShower.shower_azimuth
+        shower_zenith = branch_SimShower.shower_zenith
+        shower_Bfield = branch_SimShower.magnetic_field
+            
+        # TREE SimEfield------------------------------------------------------
+        positions = branch_SimEfield.Detectors_det_pos_shc
+        t0 = branch_SimEfield.Detectors_t_0
+        t_bin_size = branch_SimEfield.t_bin_size
+        id = branch_SimEfield.Detectors_det_id
+            
+        # TREE SimSignal------------------------------------------------------
+        Detectors_trace_Vx = branch_SimSignal.Detectors_trace_x
+        Detectors_trace_Vy = branch_SimSignal.Detectors_trace_y
+        Detectors_trace_Vz = branch_SimSignal.Detectors_trace_z
+        p2p = branch_SimSignal.Detectors_p2p
+
+        fields = FieldsCollection()
+        for ant in range(len(Detectors_trace_Vx)):
+            r = CartesianRepresentation(float(positions[ant][0]),
+                float(positions[ant][1]), float(positions[ant][2]),
+                unit=u.m)
+            antenna = int(id[ant])
+            t = np.asarray(
+                    np.linspace(t0[ant], t0[ant] + 
+                    t_bin_size * len(Detectors_trace_Vx[ant]),
+                    len(Detectors_trace_Vx[ant])),"f8"
+            ) << u.ns
+            Ex = np.asarray(Detectors_trace_Vx[ant], "f8") << u.uV / u.m
+            Ey = np.asarray(Detectors_trace_Vy[ant], "f8") << u.uV / u.m
+            Ez = np.asarray(Detectors_trace_Vz[ant], "f8") << u.uV / u.m
+            E = (CartesianRepresentation(Ex, Ey, Ez, copy=False),)
+            fields[antenna] = CollectionEntry(electric=ElectricField(t=t, E=E, r=r))
+
+        primary = {
+            "Fe^56": ParticleCode.IRON,
+            "22": ParticleCode.GAMMA,
+            "2212": ParticleCode.PROTON,
+        }[str(*branch_SimShower.shower_type)]
+
+        geomagnet = PhysicsSphericalRepresentation(
+            theta=float(90 + np.arctan2(shower_Bfield[2],
+                  shower_Bfield[0])*180/np.pi) << u.deg,
+            phi=0 << u.deg,
+            r=float(np.linalg.norm(shower_Bfield)) << u.uT,
+        )
+
+        try:
+            latitude = branch_SimShower.site_lat_long[0] << u.deg
+            longitude = branch_SimShower.site_lat_long[1] << u.deg
+            declination = 0 << u.deg
+            obstime = datetime.strptime(
+                str(*branch_SimShower.date).strip(), "%d/%b/%Y"
+            )
+        except ValueError:
+            frame = None
+        else:
+            origin = ECEF(
+                latitude,
+                longitude,
+                0 * u.m,  # Site height = 0
+                representation_type="geodetic",
+            )
+            frame = LTP(
+                location=origin,
+                orientation="NWU",
+                declination=declination,
+                obstime=obstime,
+            )
+
+        # my_core = event[0, 'CorePosition'] + np.array([0, 0, site_height])
+        my_core = np.array([0, 0, site_height])
+
+        return (
+            ZhairesShower(
+                energy=float(shower_energy) << u.EeV,
+                zenith=(180 - float(shower_zenith)) << u.deg,
+                azimuth=(180 - float(shower_azimuth)) << u.deg,
+                primary=primary,
+                frame=frame,
+                core=CartesianRepresentation(*my_core, unit="m"),
+                geomagnet=geomagnet.represent_as(CartesianRepresentation),
+                maximum=CartesianRepresentation(
+                    *branch_SimShower.xmax_pos_shc, unit="m"
+                ),
+                fields=fields,
+            ),
+            True,
+        )
 
     def simulation_inspect(self):
         """
@@ -2087,13 +2218,17 @@ class SymFit:
         """
 
         # Constraints from parameter estimation
-        if(par[0]>700):
-            return np.inf
-        if(par[3]<0):
-            return np.inf
+        #if(par[0]>700):
+        #    return np.inf
+        #if(par[3]<0):
+        #    return np.inf
 
         sel = np.where(fluence_par > 0)[0]
         f_par = fluence_par[sel]
+
+        if(par[0] > np.max(f_par)): # To prevent LDF too high close to the core
+            return np.inf
+
         Chi2 = 0
         for i in range(f_par.size):
             LDF = SymFit.SymLDF(par, r[sel][i])
