@@ -876,27 +876,24 @@ class EnergyRec:
         t0 = branch_SimEfield.Detectors_t_0
         t_bin_size = branch_SimEfield.t_bin_size
         id = branch_SimEfield.Detectors_det_id
-            
-        # TREE SimSignal------------------------------------------------------
-        Detectors_trace_Vx = branch_SimSignal.Detectors_trace_x
-        Detectors_trace_Vy = branch_SimSignal.Detectors_trace_y
-        Detectors_trace_Vz = branch_SimSignal.Detectors_trace_z
-        p2p = branch_SimSignal.Detectors_p2p
+        Detectors_trace_Ex = branch_SimEfield.Detectors_trace_x
+        Detectors_trace_Ey = branch_SimEfield.Detectors_trace_y
+        Detectors_trace_Ez = branch_SimEfield.Detectors_trace_z
 
         fields = FieldsCollection()
-        for ant in range(len(Detectors_trace_Vx)):
+        for ant in range(len(Detectors_trace_Ex)):
             r = CartesianRepresentation(float(positions[ant][0]),
                 float(positions[ant][1]), float(positions[ant][2]),
                 unit=u.m)
             antenna = int(id[ant])
             t = np.asarray(
                     np.linspace(t0[ant], t0[ant] + 
-                    t_bin_size * len(Detectors_trace_Vx[ant]),
-                    len(Detectors_trace_Vx[ant])),"f8"
+                    t_bin_size * len(Detectors_trace_Ex[ant]),
+                    len(Detectors_trace_Ex[ant])),"f8"
             ) << u.ns
-            Ex = np.asarray(Detectors_trace_Vx[ant], "f8") << u.uV / u.m
-            Ey = np.asarray(Detectors_trace_Vy[ant], "f8") << u.uV / u.m
-            Ez = np.asarray(Detectors_trace_Vz[ant], "f8") << u.uV / u.m
+            Ex = np.asarray(Detectors_trace_Ex[ant], "f8") << u.uV / u.m
+            Ey = np.asarray(Detectors_trace_Ey[ant], "f8") << u.uV / u.m
+            Ez = np.asarray(Detectors_trace_Ez[ant], "f8") << u.uV / u.m
             E = (CartesianRepresentation(Ex, Ey, Ez, copy=False),)
             fields[antenna] = CollectionEntry(electric=ElectricField(t=t, E=E, r=r))
 
