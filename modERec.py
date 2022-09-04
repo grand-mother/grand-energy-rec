@@ -327,8 +327,7 @@ class Antenna:
 
         Notes
         -----
-        Fills self.fluence, self.fluence_geo, self.fluence_ce, self.fluence_evB and self.luence_evvB.
-
+        Fills self.fluence, self.fluence_geo, self.fluence_ce, self.fluence_evB and self.fluence_evvB
         """
         tt = t - np.min(t)
         delta_tt = (tt[1] - tt[0]) * 1e-9  # convert from ns to seconds
@@ -2193,6 +2192,39 @@ class SymFit:
 
         LDF = A * np.exp(-B * r - C * r ** 2 - D * r ** 3)
         return LDF
+    
+    @staticmethod
+    def SymLDF_2022(par, r):
+        r"""
+        The symmetric ldf to be fit to the fluence_par data.
+
+        .. math::
+            f_{GS}(r) = f_0\left[\exp\left(-\left(\frac{r-r_0^{fit}}{\sigma}\right)^{p(r)}\right)+\frac{a_{rel}}{1+\exp(s.[r/r_0^{fit}-r_{02}]))}\right]
+
+        Parameters
+        ----------
+        par:
+            The parameter array;
+        r:
+            The distance to the axis.
+
+        Returns
+        -------
+        LDF: double
+            The ldf value at distance r.
+        """
+        f_0 = par[0]
+        r_0 = par[1]
+        sigma = par[2]
+        p_r = 2
+        a_rel = par[3]
+        s = par[4]
+        r_02 = par[5]
+
+        A = np.exp(-pow((r - r_0) / sigma, p_r))
+        B = a_rel / (1 + np.exp(s * (r / r_0 - r_02)))
+        LDF = f_0 * (A + B)
+        return LDF
 
     @staticmethod
     def LDF_chi2(par, r, fluence_par):
@@ -2227,13 +2259,14 @@ class SymFit:
             return np.inf
 
         Chi2 = 0
+        sigma = 0.03 * f_par + 1.e-4 * np.max(f_par)
         for i in range(f_par.size):
-            LDF = SymFit.SymLDF(par, r[sel][i])
+            LDF = SymFit.SymLDF_2022(par, r[sel][i])
             # if a_arr[i] < 1:
-            #Chi2 = Chi2 + ((f_par[i] - LDF) / np.sqrt(f_par[i])) ** 2
-            Chi2 = Chi2 + ((f_par[i] - LDF)) ** 2
+            Chi2 = Chi2 + ((f_par[i] - LDF) / sigma[i]) ** 2
+            #Chi2 = Chi2 + ((f_par[i] - LDF)) ** 2
 
-        Chi2 = Chi2 + (SymFit.SymLDF(par, 10000))** 2 # Asymptotical limit
+        #Chi2 = Chi2 + (SymFit.SymLDF_2022(par, 10000))** 2 # Asymptotical limit
 
         return Chi2
 
@@ -2323,7 +2356,7 @@ class SymFit:
         E_rad = (
             2
             * np.pi
-            * sp.integrate.quad(lambda r: r * SymFit.SymLDF(ldf_par, r), 0, 2000)[0]
+            * sp.integrate.quad(lambda r: r * SymFit.SymLDF_2022(ldf_par, r), 0, 2000)[0]
         )
         sin2alpha = np.sin(alpha) ** 2.0
 
