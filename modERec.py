@@ -700,6 +700,29 @@ class EnergyRec:
                 self.GRANDshower, bool_traces = self.custom_from_pengxiong(
                     self.simulation, self.site_height, self.evt_num
                 )
+            
+            elif (self.simulation_type == "felix"):
+                self.GRANDshower, bool_traces = self.custom_from_felix(
+                    self.simulation
+                )
+                self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
+                with h5py.File(self.simulation, "r") as file:
+                    antenna_list = self.antenna.values()
+                    dt = file['highlevel']['obsplane_2900_gp_vB_vvB']
+                    for ant in antenna_list:
+                        idx = ant.ID
+                        self.antenna[idx].fluence = dt['energy_fluence'][idx]
+
+                        f_vec = dt['energy_fluence_vector'][idx]
+                        self.antenna[idx].fluence_geo = -1
+                        self.antenna[idx].fluence_ce = -1
+                        self.antenna[idx].fluence_evB = np.abs(f_vec[0])
+                        self.antenna[idx].fluence_evvB = np.abs(f_vec[1])
+                        self.antenna[idx].r_proj = dt['antenna_position_vBvvB'][idx][:]
+
+                
+                return
+
 
             if Path(self.simulation).is_dir():
                 self.GRANDshower.localize(latitude=45.5, longitude=90.5)
@@ -953,6 +976,28 @@ class EnergyRec:
             ),
             True,
         )
+
+    @staticmethod
+    def custom_from_felix(path: Path) -> ZhairesShower:
+        bool_traces = False
+        with h5py.File(path, "r") as file:
+            fields = FieldsCollection()
+
+            n_ant = file['highlevel']['obsplane_2900_gp_vB_vvB']['antenna_names'].shape[0]
+            for ant in range(n_ant):
+                x = file['highlevel']['obsplane_2900_gp_vB_vvB']["antenna_position"][ant, 0]
+                y = file['highlevel']['obsplane_2900_gp_vB_vvB']["antenna_position"][ant, 1]
+                z = file['highlevel']['obsplane_2900_gp_vB_vvB']["antenna_position"][ant, 2]
+                r = CartesianRepresentation(x=float(x), y=float(y), z=float(z))  # RK
+                
+                t = None
+                E = None
+                fields[ant] = CollectionEntry(electric=ElectricField(t=t, E=E, r=r))
+
+            return ZhairesShower(
+                energy=1.0e9,  # EeV --> GeV HARD CODED!!! For testing
+                fields=fields,
+            ), bool_traces
 
     def simulation_inspect(self):
         """
