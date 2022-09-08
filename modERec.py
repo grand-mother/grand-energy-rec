@@ -35,10 +35,10 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
-from astropy.coordinates import (CartesianRepresentation,
-                                 PhysicsSphericalRepresentation)
+from grand.tools.coordinates import (CartesianRepresentation,
+                                 SphericalRepresentation)
 from astropy.table import Table
-from grand import ECEF, LTP, Rotation
+from grand import ECEF, LTP, Geodetic, Rotation
 from grand.simulation import ElectricField, ShowerEvent, ZhairesShower
 from grand.simulation.pdg import ParticleCode
 from grand.simulation.shower.generic import CollectionEntry, FieldsCollection
@@ -522,6 +522,8 @@ class Shower:
     bool_plot = False
     ## Distance to Xmax.
     d_Xmax = None
+    ## Projection matrix
+    projection_mat = None
 
     def __init__(self):
         """
@@ -655,7 +657,7 @@ class EnergyRec:
                         ant
                     ].electric.r.transform(rotation)
 
-                self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)
+                self.GRANDshower.localize(latitude=45.5, longitude=90.5)
 
             elif (
                 self.simulation_type == "custom" or self.simulation_type == "starshape"
@@ -698,31 +700,34 @@ class EnergyRec:
                 self.GRANDshower, bool_traces = self.custom_from_pengxiong(
                     self.simulation, self.site_height, self.evt_num
                 )
-                for ant in range(len(self.GRANDshower.fields)):
-                    self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
-                        ant
-                    ].electric.E[0]
 
             if Path(self.simulation).is_dir():
-                self.GRANDshower.localize(latitude=45.5 * u.deg, longitude=90.5 * u.deg)
+                self.GRANDshower.localize(latitude=45.5, longitude=90.5)
+
+            
+            ev = self.GRANDshower.core - self.GRANDshower.maximum
+            ev /= ev.norm()
+            ev = ev.T[0]
+            self.shower.ev = ev
+
+            evB = np.cross(ev, self.GRANDshower.geomagnet.T[0])
+            evB /= np.linalg.norm(evB)
+            self.shower.evB = evB
+            evvB = np.cross(ev, evB)
+            self.shower.evvB = evvB
+            eB = self.GRANDshower.geomagnet.T[0]
+            eB /= np.linalg.norm(eB)
+            self.shower.eB = eB
+
+            self.shower.projection_mat = np.linalg.inv(np.array([
+                evB, evvB, ev
+                ]).T)
 
             self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
             self.shower_projection()
 
             self.Eval_fluences()
             # self.plot_antpos()
-
-            ev = self.GRANDshower.core - self.GRANDshower.maximum
-            ev /= ev.norm()
-            self.shower.ev = ev.xyz.value
-            evB = ev.cross(self.GRANDshower.geomagnet)
-            evB /= evB.norm()
-            self.shower.evB = evB.xyz.value
-            evvB = ev.cross(evB)
-            self.shower.evvB = evvB.xyz.value
-            eB = self.GRANDshower.geomagnet.xyz.value
-            eB /= np.linalg.norm(eB)
-            self.shower.eB = eB
 
             self.early_late()
 
@@ -767,22 +772,23 @@ class EnergyRec:
 
             pattern = re.compile("([0-9]+)$")
             for antenna, x, y, z, *_ in antennas:
-                r = CartesianRepresentation(float(x), float(y), float(z), unit=u.m)
+                r = CartesianRepresentation(float(x), float(y), float(z))
                 if bool_traces:
                     tag = antenna.decode()
                     antenna = int(pattern.search(tag)[1])
                     tmp = traces[f"{tag}/efield"][:]
                     efield = tmp.view("f4").reshape(tmp.shape + (-1,))
-                    t = np.asarray(efield[:, 0], "f8") << u.ns
-                    Ex = np.asarray(efield[:, 1], "f8") << u.uV / u.m
-                    Ey = np.asarray(efield[:, 2], "f8") << u.uV / u.m
-                    Ez = np.asarray(efield[:, 3], "f8") << u.uV / u.m
-                    E = (CartesianRepresentation(Ex, Ey, Ez, copy=False),)
+                    t = np.asarray(efield[:, 0], "f8")
+                    Ex = np.asarray(efield[:, 1], "f8")
+                    Ey = np.asarray(efield[:, 2], "f8")
+                    Ez = np.asarray(efield[:, 3], "f8")
                 else:
                     t = None
                     E = None
-
-                fields[antenna] = CollectionEntry(electric=ElectricField(t=t, E=E, r=r))
+                electric = ElectricField(
+                    t, CartesianRepresentation(x=Ex, y=Ey, z=Ez), r
+                    )
+                fields[antenna] = CollectionEntry(electric)
 
             primary = {
                 "Fe^56": ParticleCode.IRON,
@@ -790,28 +796,24 @@ class EnergyRec:
                 "Proton": ParticleCode.PROTON,
             }[event[0, "Primary"].decode()]
 
-            geomagnet = PhysicsSphericalRepresentation(
-                theta=float(90 + event[0, "BFieldIncl"]) << u.deg,
-                phi=0 << u.deg,
-                r=float(event[0, "BField"]) << u.uT,
+            geomagnet = SphericalRepresentation(
+                theta=float(90 + event[0, "BFieldIncl"]),
+                phi=0,
+                r=float(event[0, "BField"])
             )
 
             try:
-                latitude = event[0, "Latitude"].decode("utf-8") << u.deg
-                longitude = event[0, "Longitude"].decode("utf-8") << u.deg
-                declination = event[0, "BFieldDecl"] << u.deg
+                latitude = event[0, "Latitude"].decode("utf-8")
+                longitude = event[0, "Longitude"].decode("utf-8")
+                declination = event[0, "BFieldDecl"]
                 obstime = datetime.strptime(
                     event[0, "Date"].decode("utf-8").strip(), "%d/%b/%Y"
                 )
             except ValueError:
                 frame = None
             else:
-                origin = ECEF(
-                    latitude,
-                    longitude,
-                    0 * u.m,  # Site height = 0
-                    representation_type="geodetic",
-                )
+                geodetic = Geodetic(latitude=latitude, longitude=longitude, height=0.0)
+                origin = ECEF(geodetic)
                 frame = LTP(
                     location=origin,
                     orientation="NWU",
@@ -824,15 +826,15 @@ class EnergyRec:
 
             return (
                 ZhairesShower(
-                    energy=float(event[0, "Energy"]) << u.EeV,
-                    zenith=(180 - float(event[0, "Zenith"])) << u.deg,
-                    azimuth=(180 - float(event[0, "Azimuth"])) << u.deg,
+                    energy=float(event[0, "Energy"]),
+                    zenith=(180 - float(event[0, "Zenith"])),
+                    azimuth=(180 - float(event[0, "Azimuth"])),
                     primary=primary,
                     frame=frame,
-                    core=CartesianRepresentation(*my_core, unit="m"),
-                    geomagnet=geomagnet.represent_as(CartesianRepresentation),
+                    core=CartesianRepresentation(*my_core),
+                    geomagnet=CartesianRepresentation(geomagnet),
                     maximum=CartesianRepresentation(
-                        *event[0, "XmaxPosition"], unit="m"
+                        *event[0, "XmaxPosition"]
                     ),
                     fields=fields,
                 ),
@@ -881,20 +883,22 @@ class EnergyRec:
 
         fields = FieldsCollection()
         for ant in range(len(Detectors_trace_Ex)):
-            r = CartesianRepresentation(float(positions[ant][0]),
-                float(positions[ant][1]), float(positions[ant][2]),
-                unit=u.m)
+            r = CartesianRepresentation(x=float(positions[ant][0]),
+                y=float(positions[ant][1]), z=float(positions[ant][2])
+                )
             antenna = int(id[ant])
             t = np.asarray(
                     np.linspace(t0[ant], t0[ant] + 
                     t_bin_size * len(Detectors_trace_Ex[ant]),
                     len(Detectors_trace_Ex[ant])),"f8"
-            ) << u.ns
-            Ex = np.asarray(Detectors_trace_Ex[ant], "f8") << u.uV / u.m
-            Ey = np.asarray(Detectors_trace_Ey[ant], "f8") << u.uV / u.m
-            Ez = np.asarray(Detectors_trace_Ez[ant], "f8") << u.uV / u.m
-            E = (CartesianRepresentation(Ex, Ey, Ez, copy=False),)
-            fields[antenna] = CollectionEntry(electric=ElectricField(t=t, E=E, r=r))
+            )
+            Ex = np.asarray(Detectors_trace_Ex[ant], "f8") * 1.e-6 # muV/m to V/m
+            Ey = np.asarray(Detectors_trace_Ey[ant], "f8") * 1.e-6 # muV/m to V/m
+            Ez = np.asarray(Detectors_trace_Ez[ant], "f8") * 1.e-6 # muV/m to V/m
+            electric = ElectricField(
+                t, CartesianRepresentation(x=Ex, y=Ey, z=Ez), r
+                )
+            fields[antenna] = CollectionEntry(electric)
 
         primary = {
             "Fe^56": ParticleCode.IRON,
@@ -902,29 +906,25 @@ class EnergyRec:
             "2212": ParticleCode.PROTON,
         }[str(*branch_SimShower.shower_type)]
 
-        geomagnet = PhysicsSphericalRepresentation(
+        geomagnet = SphericalRepresentation(
             theta=float(90 + np.arctan2(shower_Bfield[2],
-                  shower_Bfield[0])*180/np.pi) << u.deg,
-            phi=0 << u.deg,
-            r=float(np.linalg.norm(shower_Bfield)) << u.uT,
+                  shower_Bfield[0])*180/np.pi),
+            phi=0,
+            r=float(np.linalg.norm(shower_Bfield))
         )
 
         try:
-            latitude = branch_SimShower.site_lat_long[0] << u.deg
-            longitude = branch_SimShower.site_lat_long[1] << u.deg
-            declination = 0 << u.deg
+            latitude = branch_SimShower.site_lat_long[0]
+            longitude = branch_SimShower.site_lat_long[1]
+            declination = 0
             obstime = datetime.strptime(
                 str(*branch_SimShower.date).strip(), "%d/%b/%Y"
             )
         except ValueError:
             frame = None
         else:
-            origin = ECEF(
-                latitude,
-                longitude,
-                0 * u.m,  # Site height = 0
-                representation_type="geodetic",
-            )
+            geodetic = Geodetic(latitude=latitude, longitude=longitude, height=0.0)
+            origin = ECEF(geodetic)
             frame = LTP(
                 location=origin,
                 orientation="NWU",
@@ -937,15 +937,17 @@ class EnergyRec:
 
         return (
             ZhairesShower(
-                energy=float(shower_energy) << u.EeV,
-                zenith=(180 - float(shower_zenith)) << u.deg,
-                azimuth=(180 - float(shower_azimuth)) << u.deg,
+                energy=float(shower_energy),
+                zenith=(180 - float(shower_zenith)),
+                azimuth=(180 - float(shower_azimuth)),
                 primary=primary,
                 frame=frame,
-                core=CartesianRepresentation(*my_core, unit="m"),
-                geomagnet=geomagnet.represent_as(CartesianRepresentation),
+                core=CartesianRepresentation(x=my_core[0], y=my_core[1], z=my_core[2]),
+                geomagnet=CartesianRepresentation(geomagnet),
                 maximum=CartesianRepresentation(
-                    *branch_SimShower.xmax_pos_shc, unit="m"
+                    x=branch_SimShower.xmax_pos_shc[0],
+                    y=branch_SimShower.xmax_pos_shc[1],
+                    z=branch_SimShower.xmax_pos_shc[2]
                 ),
                 fields=fields,
             ),
@@ -992,13 +994,13 @@ class EnergyRec:
         """
 
         if id < len(self.GRANDshower.fields):
-            Ex = self.GRANDshower.fields[id].electric.E.x.to("V/m")
-            Ey = self.GRANDshower.fields[id].electric.E.y.to("V/m")
-            Ez = self.GRANDshower.fields[id].electric.E.z.to("V/m")
-            EvB = self.shower.traces_proj[id].x.to("V/m").value
-            EvvB = self.shower.traces_proj[id].y.to("V/m").value
-            Ev = self.shower.traces_proj[id].z.to("V/m").value
-            time = self.GRANDshower.fields[id].electric.t.to("ns")
+            Ex = self.GRANDshower.fields[id].electric.E.x
+            Ey = self.GRANDshower.fields[id].electric.E.y
+            Ez = self.GRANDshower.fields[id].electric.E.z
+            EvB = self.shower.traces_proj[id].x
+            EvvB = self.shower.traces_proj[id].y
+            Ev = self.shower.traces_proj[id].z
+            time = self.GRANDshower.fields[id].electric.t
 
         global_peak = np.max(np.abs([Ex, Ey, Ez]))
         peak_index = np.where(np.abs([Ex, Ey, Ez]) == global_peak)[0][0]
@@ -1060,16 +1062,16 @@ class EnergyRec:
         """
 
         if id < len(self.GRANDshower.fields):
-            time = self.GRANDshower.fields[id].electric.t.to("ns").value
+            time = self.GRANDshower.fields[id].electric.t
 
             # Ex = self.GRANDshower.fields[id].electric.E.x.to("V/m").value
             # Ey = self.GRANDshower.fields[id].electric.E.y.to("V/m").value
             # Ez = self.GRANDshower.fields[id].electric.E.z.to("V/m").value
             # traces  = np.c_[time,Ex,Ey,Ez]
 
-            EvB = self.shower.traces_proj[id].x.to("V/m").value
-            EvvB = self.shower.traces_proj[id].y.to("V/m").value
-            Ev = self.shower.traces_proj[id].z.to("V/m").value
+            EvB = self.shower.traces_proj[id][:,0]
+            EvvB = self.shower.traces_proj[id][:,1]
+            Ev = self.shower.traces_proj[id][:,2]
             traces = np.c_[time, EvB, EvvB, Ev]
         else:
             message = "ERROR: id = " + str(id) + " is out of the antenna array bounds!"
@@ -1140,12 +1142,11 @@ class EnergyRec:
                 fluence_site = CartesianRepresentation(
                     ant["Fluencex_efield"],
                     ant["Fluencey_efield"],
-                    ant["Fluencez_efield"],
-                    unit=u.eV / u.m ** 2,
+                    ant["Fluencez_efield"]
                 )
-                fluence_shower = self.GRANDshower.transform(
-                    fluence_site, shower_frame
-                ).cartesian.xyz.value
+                fluence_shower = np.array([
+                    np.dot(self.shower.projection_mat, f_site) for f_site in fluence_site
+                    ])
 
                 self.antenna[idx].fluence_geo = -1
                 self.antenna[idx].fluence_ce = -1
@@ -1219,7 +1220,7 @@ class EnergyRec:
         eB = self.shower.eB
         alpha = np.arccos(np.dot(self.shower.ev, eB))
         d_Xmax = np.linalg.norm(
-            (self.GRANDshower.core - self.GRANDshower.maximum).xyz.value
+            (self.GRANDshower.core - self.GRANDshower.maximum)
         )
         rho_Xmax = SymFit.rho(d_Xmax, -self.shower.ev)
 
@@ -1327,7 +1328,7 @@ class EnergyRec:
 
         r_ant = np.zeros((n_ant, 3))
         for idx, (key, value) in enumerate(self.GRANDshower.fields.items()):
-            r_ant[idx] = value.electric.r.xyz.value
+            r_ant[idx] = value.electric.r.T[0]
 
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
         sel = np.where(fluence_arr > 0)[0]
@@ -1390,28 +1391,26 @@ class EnergyRec:
         # The antenna projection
         n_ant = len(self.GRANDshower.fields)
 
-        shower_frame = self.GRANDshower.shower_frame()
         traces_proj = {}
 
         for key, value in self.GRANDshower.fields.items():
-            r_ant = value.electric.r - self.GRANDshower.core
+            r_ant = value.electric.r.T[0] - self.GRANDshower.core.T[0]
             # if self.simulation_type == "starshape":
             #    self.antenna[key].r_proj = r_ant.xyz.value
             # else:
-            self.antenna[key].r_proj = self.GRANDshower.transform(
-                r_ant, shower_frame
-            ).cartesian.xyz.value
+            self.antenna[key].r_proj = np.dot(self.shower.projection_mat, r_ant)
 
             if self.simulation_type != "custom":
-                E = self.GRANDshower.fields[key].electric.E
-                traces_proj[key] = self.GRANDshower.transform(E, shower_frame)
+                temp = self.GRANDshower.fields[key].electric.E
+                E = zip(temp.x ,temp.y, temp.z)
+                traces_proj[key] = np.array([np.dot(self.shower.projection_mat, E_entry) for E_entry in E])
             else:
                 traces_proj[key] = None
 
-        core = self.GRANDshower.core - self.GRANDshower.core
-        r_Core_proj = self.GRANDshower.transform(core, shower_frame).cartesian.xyz
+        core = self.GRANDshower.core.T[0] - self.GRANDshower.core.T[0]
+        r_Core_proj = np.dot(self.shower.projection_mat, core)
 
-        self.shower.r_Core_proj = r_Core_proj.value
+        self.shower.r_Core_proj = r_Core_proj
         self.shower.traces_proj = traces_proj
 
     def model_fit(self, filename="", Cs=None):
@@ -1501,8 +1500,8 @@ class EnergyRec:
         Fills self.antenna.wEarlyLate for all the antennas and self.shower.d_Xmax.
 
         """
-        rCore = self.GRANDshower.core.xyz.value
-        rXmax = self.GRANDshower.maximum.xyz.value - rCore
+        rCore = self.GRANDshower.core.T[0]
+        rXmax = self.GRANDshower.maximum.T[0] - rCore
 
         self.shower.d_Xmax = np.linalg.norm(rXmax)
         R_0 = np.linalg.norm(rXmax)
@@ -1826,7 +1825,7 @@ class AERA:
             Sradio = (A * np.pi / sin2Alpha) * (
                 sigma ** 2.0 - Cs[0] * (Cs[3] ** 2.0) * np.exp(2 * Cs[4] * sigma)
             )
-            print(*resx, self.GRANDshower.energy.value, Sradio, file=bestfit)
+            print(*resx, self.GRANDshower.energy, Sradio, file=bestfit)
 
         else:
             print(*resx, file=bestfit)
