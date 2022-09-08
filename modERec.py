@@ -49,7 +49,11 @@ from scipy.signal import hilbert
 
 import ROOT
 event_lib = "../../MachineLearning/EnergyRec/Event/libSimuEvent.so"
-ROOT.gSystem.Load(event_lib)
+
+try:
+    ROOT.gSystem.Load(event_lib)
+except:
+    pass
 
 
 class Antenna:
