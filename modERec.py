@@ -55,6 +55,31 @@ try:
 except:
     pass
 
+class Input:
+    """
+    A class for the input attributes.
+
+    Attributes
+    ----------
+    r_ant_arr:
+        The antenna positions
+    traces_x:
+        The traces in x direction
+    traces_y:
+        The traces in y direction
+    traces_z:
+        The traces in z direction
+    ev:
+        Unitary vector in the velocity direction
+    eB:
+        Unitary vector on the magnetic field direction
+    r_core:
+        Shower core coordinates
+    r_x_max:
+        X max position w.r.t. the shower core
+    energy:
+        Monte Carlo energy
+    """
 
 class Antenna:
     """
@@ -80,8 +105,24 @@ class Antenna:
         The fluence on the evvB direction
     wEarlyLate:
         A weight to be used for the early-late correction
+    r_ground:
+        The position of the antenna in the ground
     r_proj:
         The position of the antenna in the shower plane
+    trace_x:
+        Electric field trace on the x direction
+    trace_y:
+        Electric field trace on the y direction
+    trace_z:
+        Electric field trace on the z direction
+    trace_evB:
+        Electric field trace on the evB direction
+    trace_evvB:
+        Electric field trace on the evvB direction
+    trace_ev:
+        Electric field trace on the ev direction
+    time:
+        Time array for the traces    
 
     """
 
@@ -103,6 +144,20 @@ class Antenna:
     wEarlyLate = None
     ## The position of the antenna in the shower plane
     r_proj = None
+    ## Electric field trace on the x direction
+    trace_x = None
+    ## Electric field trace on the y direction    
+    trace_y = None
+    ## Electric field trace on the z direction
+    trace_z = None
+    ## Electric field trace on the evB direction
+    trace_evB = None
+    ## Electric field trace on the evvB direction    
+    trace_evvB = None
+    ## Electric field trace on the ev direction
+    trace_ev = None
+    ## Time array for the traces
+    time = None
 
     def __init__(self, ID):
         """
@@ -112,7 +167,7 @@ class Antenna:
         self.ID = ID
 
     @staticmethod
-    def fft_filter(traces, nu_low=50, nu_high=200, bool_plot=False):
+    def fft_filter(time_arr, trace, nu_low=50, nu_high=200):
         """
         Evaluates the FFT of the signal.
 
@@ -135,10 +190,6 @@ class Antenna:
             The Fourier transform of the traces.
 
         """
-        time_arr = traces[:, 0]
-        trace1 = traces[:, 1]
-        trace2 = traces[:, 2]
-        trace3 = traces[:, 3]
         # Number of sample points
         N = time_arr.size
 
@@ -147,55 +198,22 @@ class Antenna:
             (time_arr[1] - time_arr[0]) * 1.0e-9
         )  # uniform sampling rate (convert time from ns to seconds)
         T = 1 / sampling_rate
-        yf1 = fft(trace1)
-        yf2 = fft(trace2)
-        yf3 = fft(trace3)
+        yf = fft(trace)
         xf = np.linspace(0.0, 1.0 / (2.0 * T), N // 2)
 
         nu_low = nu_low * 10 ** 6  # from MHz to Hz
         nu_high = nu_high * 10 ** 6  # from MHz to Hz
         for i in range(xf.size):
             if xf[i] < nu_low or xf[i] > nu_high:
-                yf1[i] = 0
-                yf1[
+                yf[i] = 0
+                yf[
                     -i
                 ] = 0  # negative frequencies are backordered (0 1 2 3 4 -4 -3 -2 -1)
-                yf2[i] = 0
-                yf2[-i] = 0
-                yf3[i] = 0
-                yf3[-i] = 0
 
-        if bool_plot:
-            fig = plt.figure(figsize=(15, 3))
-            fig.suptitle("Fourier transform of the traces", fontsize=16, y=1)
-            plt.subplot(131)
-            plt.plot(xf, 2 / N * np.abs(yf1[0 : N // 2]), "r")
-            # plt.xlabel("frequency in Hz")
-            plt.ylabel("signal in a.u.")
-            plt.xlabel("frequency in Hz")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(132)
-            plt.plot(xf, 2 / N * np.abs(yf2[0 : N // 2]), "b")
-            plt.xlabel("frequency in Hz")
-            # plt.ylabel("signal in a.u.")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(133)
-            plt.plot(xf, 2 / N * np.abs(yf3[0 : N // 2]), "k")
-            # plt.xlabel("frequency in Hz")
-            # plt.ylabel("signal in a.u.")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.show()
-
-        return np.c_[yf1, yf2, yf3]
+        return yf
 
     @staticmethod
-    def trace_recover(t, traces_fft, bool_plot=False):
+    def trace_recover(time_arr, trace_fft):
         """
         Reconstructs the trace after the FFT and filter.
 
@@ -214,42 +232,14 @@ class Antenna:
             The reconstructed traces.
 
         """
-        yy1 = ifft(traces_fft[:, 0]).real
-        yy2 = ifft(traces_fft[:, 1]).real
-        yy3 = ifft(traces_fft[:, 2]).real
+        yy = ifft(trace_fft).real
 
-        xx = t - np.min(t)
+        xx = time_arr - np.min(time_arr)
 
-        if bool_plot:
-            fig = plt.figure(figsize=(15, 3))
-            fig.suptitle("Reconstructed traces in shower plane", fontsize=16, y=1)
-            plt.subplot(131)
-            plt.plot(xx, yy1.real, "r")
-            # plt.xlabel("time in ns")
-            plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(132)
-            plt.plot(xx, yy2.real, "b")
-            plt.xlabel("time in ns")
-            # plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(133)
-            plt.plot(xx, yy3.real, "k")
-            # plt.xlabel("time in ns")
-            # plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.show()
-
-        return np.c_[t, yy1, yy2, yy3]
+        return yy
 
     @staticmethod
-    def hilbert_envelope(traces_rec, bool_plot=False):
+    def hilbert_envelope(time_arr, trace_rec):
         r"""
         Evaluates the hilbert envelope of the recunstructed traces.
 
@@ -269,44 +259,12 @@ class Antenna:
         hilbert: list
             The hilbert envelopes [total, in evB direction, in evvB direction, in ev direction].
         """
-        tt = traces_rec[:, 0] - np.min(traces_rec[:, 0])
-        envelope1 = hilbert(traces_rec[:, 1].real)
-        envelope2 = hilbert(traces_rec[:, 2].real)
-        envelope3 = hilbert(traces_rec[:, 3].real)
+        hilbert_env = hilbert(trace_rec)
 
-        if bool_plot:
-            fig = plt.figure(figsize=(15, 3))
-            fig.suptitle("Hilbert Envelopes in the shower plane", fontsize=16, y=1)
-            plt.subplot(131)
-            plt.plot(tt, traces_rec[:, 1].real, "r", label="signal")
-            plt.plot(tt, np.abs(envelope1), label="envelope")
-            # plt.xlabel("time in ns")
-            plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+        return hilbert_env
 
-            plt.subplot(132)
-            plt.plot(tt, traces_rec[:, 2].real, "b", label="signal")
-            plt.plot(tt, np.abs(envelope2), label="envelope")
-            plt.xlabel("time in ns")
-            # plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(133)
-            plt.plot(tt, traces_rec[:, 3].real, "k", label="signal")
-            plt.plot(tt, np.abs(envelope3), label="envelope")
-            # plt.xlabel("time in ns")
-            # plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.show()
-
-        hilbert_env = np.sqrt(envelope1 ** 2 + envelope2 ** 2 + envelope3 ** 2)
-        return np.c_[hilbert_env, envelope1, envelope2, envelope3]
-
-    def compute_fluence(self, t, hilbert_env, SNR_thres=10, bool_plot=False):
+    @staticmethod
+    def compute_fluence(time_arr, trace, SNR_thres=10):
         r"""
         Computes the fluence for a given antenna.
 
@@ -333,41 +291,34 @@ class Antenna:
         -----
         Fills self.fluence, self.fluence_geo, self.fluence_ce, self.fluence_evB and self.fluence_evvB
         """
-        tt = t - np.min(t)
+
+        trace_fft = Antenna.fft_filter(time_arr, trace)
+        trace_rec = Antenna.trace_recover(time_arr, trace_fft)
+
+        # Check if peak is within the threshold range after offset, cut and trace recover.
+        hilbert_env = Antenna.hilbert_envelope(time_arr, trace_rec)
+
+        tt = time_arr - np.min(time_arr)
         delta_tt = (tt[1] - tt[0]) * 1e-9  # convert from ns to seconds
 
-        envelope2 = hilbert_env[:, 0] ** 2.0
+        envelope2 = hilbert_env ** 2.0
 
         tmean_index = np.where(envelope2 == np.max(envelope2))[0][
             0
         ]  # Index of the hilbert envelope maximum
 
-        if bool_plot:
-            plt.plot(tt, np.abs(envelope2))
-            plt.xlabel("time in nanoseconds")
-            plt.ylabel(r"E$^2$ in V$^2$/m$^2$")
-            plt.show()
-
         if tt[-1] - tt[tmean_index] < 150:
             # print("Peak too close to the end of the signal. Skipping")
-            self.fluence = -2e-5
-            self.fluence_geo = -2e-5
-            self.fluence_ce = -2e-5
-            self.fluence_evB = -2e-5
-            self.fluence_evvB = -2e-5
-            return
+            fluence = 0
+            return fluence, 0
 
         time_100ns_index = np.where(tt <= 100)[0][-1]  # Index of 100 ns bin
 
         if tmean_index < time_100ns_index:
             # tmean_index = time_100ns_index
             # print("Peak too close to the beginning of the signal. Skipping")
-            self.fluence = -1e-5
-            self.fluence_geo = -1e-5
-            self.fluence_ce = -1e-5
-            self.fluence_evB = -1e-5
-            self.fluence_evvB = -1e-5
-            return
+            fluence = 0
+            return fluence, 0
 
         t1 = tt[tmean_index - time_100ns_index]
         t2 = tt[tmean_index + time_100ns_index]
@@ -398,84 +349,28 @@ class Antenna:
 
         SNR = np.sqrt(signal / bkg)
 
-        if SNR > SNR_thres:
-            my_fluence = epsilon0 * c * (signal - bkg) * Joule_to_eV  # eV * m^-2
-            self.fluence = my_fluence
+        fluence = epsilon0 * c * (signal - bkg) * Joule_to_eV # eV * m^-2
 
-            signal_evB = (
-                np.sum(np.abs(hilbert_env[:, 1] ** 2.0)[(tt >= t1) & (tt <= t2)])
-                * delta_tt
-            )
-            bkg_evB = (
-                np.sum(np.abs(hilbert_env[:, 1] ** 2.0)[(tt >= t3) & (tt < t4)])
-                * delta_tt
-                * (t2 - t1)
-                / (t4 - t3)
-            )
-            self.fluence_evB = (signal_evB - bkg_evB) * epsilon0 * c * Joule_to_eV
-
-            signal_evvB = (
-                np.sum(np.abs(hilbert_env[:, 2] ** 2.0)[(tt >= t1) & (tt <= t2)])
-                * delta_tt
-            )
-            bkg_evvB = (
-                np.sum(np.abs(hilbert_env[:, 2] ** 2.0)[(tt >= t3) & (tt < t4)])
-                * delta_tt
-                * (t2 - t1)
-                / (t4 - t3)
-            )
-            self.fluence_evvB = (signal_evvB - bkg_evvB) * epsilon0 * c * Joule_to_eV
-
-        else:
-            self.fluence = -1
-            self.fluence_evB = -1
-            self.fluence_evB = -1
+        return fluence, SNR
 
     @staticmethod
-    def offset_and_cut(traces, bool_cut=True):
-        """
-        Performs cuts and offsets the traces.
+    def compute_f_geo_ce(fluence_evB, fluence_evvB , r_plane):
+        cosPhi = np.dot(r_plane, np.array([1, 0])) / np.linalg.norm(r_plane)
+        sinPhi = np.sqrt(1 - cosPhi * cosPhi)
 
-        The offset prevents problems due to traces too close to the time origin.
-        The cut, reduces the time window to speed up the code.
+        if (
+            sinPhi >= 0.2
+        ):  # Exclude stations too close to the v\times B direction
+            fluence_geo = np.sqrt(fluence_evB) - (
+                cosPhi / sinPhi
+            ) * np.sqrt(fluence_evvB)
+            fluence_geo = fluence_geo * fluence_geo
+            fluence_ce = fluence_evvB / (sinPhi * sinPhi)
+        else:
+            fluence_geo = 0
+            fluence_ce = 0
 
-        Parameters
-        ----------
-        traces:
-            The traces to be cut;
-        bool_cut:
-            Toggles the bandwith cut;
-
-        Returns
-        -------
-        traces_cut: list
-            The cut traces.
-
-        """
-        traces0 = traces[:, 0]
-        deltat = traces0[1] - traces0[0]
-        min_time = traces0[0]
-
-        offset = int(100 / deltat)
-
-        extra_time = np.linspace(min_time - offset * deltat, min_time - 1, offset)
-        traces0 = np.insert(traces[:, 0], 0, extra_time)
-        traces1 = np.insert(traces[:, 1], 0, np.zeros(offset))
-        traces2 = np.insert(traces[:, 2], 0, np.zeros(offset))
-        traces3 = np.insert(traces[:, 3], 0, np.zeros(offset))
-
-        my_traces = np.c_[traces0, traces1, traces2, traces3]
-
-        if bool_cut:
-            global_peak = np.max(np.abs(my_traces[:, 1:4]))
-            peak_index = np.where(np.abs(my_traces[:, 1:4]) == global_peak)[0][0]
-            peak_time = my_traces[:, 0][peak_index]
-            sel = (my_traces[:, 0] > peak_time - 1000) & (
-                my_traces[:, 0] < peak_time + 1000
-            )
-
-        return my_traces[sel, 0:4]
-
+        return fluence_geo, fluence_ce
 
 class Shower:
     r"""
@@ -496,14 +391,14 @@ class Shower:
         The shower zenith in deg.
     phitCR:
         The shower azimuth in deg.
-    ECR:
+    energy:
         The cosmic ray energy
     r_Core_proj:
         The position of the core projected into the shower plane.
     bool_plot: bool
         Toggles the plots on and off.
     d_Xmax:
-        Distance to Xmax from the simultaion.
+        Distance to Xmax from the simulation.
 
     """
     ## Unitary along \f$\vec{v}\f$.
@@ -519,7 +414,7 @@ class Shower:
     ## The shower azimuthal angle.
     phiCR = None
     ## The energy of the shower.
-    ECR = None
+    energy = None
     ## The position of the core projected into the shower plane.
     r_Core_proj = None
     ## Toggles the plots on and off.
@@ -610,6 +505,8 @@ class EnergyRec:
     antenna = None
     ## An instance of the class Shower
     shower = None
+    ## An instance of the class Input
+    shower = None
     ## The bestfit values of the parameters
     bestfit = None
     ## The shower imported using the standard grand package
@@ -638,93 +535,21 @@ class EnergyRec:
         if Path(self.simulation).is_dir() or self.simulation.endswith("hdf5") or self.simulation.endswith("root"):
 
             if self.simulation_type == "coreas":
-                self.GRANDshower = ShowerEvent.load(self.simulation)
+                self.init_coreas()
             elif self.simulation_type == "zhaires":
-                self.GRANDshower = ZhairesShower._from_datafile(self.simulation)
-
-                # Fixing Aires to GRAND conventions
-                for ant in range(len(self.GRANDshower.fields)):
-                    self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
-                        ant
-                    ].electric.E[0]
-
-                    from astropy.coordinates.matrix_utilities import \
-                        rotation_matrix
-
-                    rotation = rotation_matrix(-90 * u.deg, axis="z")
-
-                    self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
-                        ant
-                    ].electric.E.transform(rotation)
-
-                    self.GRANDshower.fields[ant].electric.r = self.GRANDshower.fields[
-                        ant
-                    ].electric.r.transform(rotation)
-
-                self.GRANDshower.localize(latitude=45.5, longitude=90.5)
+                self.init_zhaires()
+                
 
             elif (
                 self.simulation_type == "custom" or self.simulation_type == "starshape"
             ):
-                self.GRANDshower, bool_traces = self.custom_from_datafile(
-                    self.simulation, self.site_height
-                )
-
-                if bool_traces:
-                    # Fixing Aires to GRAND conventions
-                    for ant in range(len(self.GRANDshower.fields)):
-                        self.GRANDshower.fields[
-                            ant
-                        ].electric.E = self.GRANDshower.fields[ant].electric.E[0]
-                        from astropy.coordinates.matrix_utilities import \
-                            rotation_matrix
-
-                        rotation = rotation_matrix(-0 * u.deg, axis="z")
-
-                        self.GRANDshower.fields[
-                            ant
-                        ].electric.E = self.GRANDshower.fields[
-                            ant
-                        ].electric.E.transform(
-                            rotation
-                        )
-
-                        self.GRANDshower.fields[
-                            ant
-                        ].electric.r = self.GRANDshower.fields[
-                            ant
-                        ].electric.r.transform(
-                            rotation
-                        )
-
-                    if self.simulation_type == "custom":
-                        self.simulation_type == "zhaires"
+                self.init_custom()
 
             elif (self.simulation_type == "pengxiong"):
-                self.GRANDshower, bool_traces = self.custom_from_pengxiong(
-                    self.simulation, self.site_height, self.evt_num
-                )
+                self.init_pengxiong()
             
             elif (self.simulation_type == "felix"):
-                self.GRANDshower, bool_traces = self.custom_from_felix(
-                    self.simulation
-                )
-                self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
-                with h5py.File(self.simulation, "r") as file:
-                    antenna_list = self.antenna.values()
-                    dt = file['highlevel']['obsplane_2900_gp_vB_vvB']
-                    for ant in antenna_list:
-                        idx = ant.ID
-                        self.antenna[idx].fluence = dt['energy_fluence'][idx]
-
-                        f_vec = dt['energy_fluence_vector'][idx]
-                        self.antenna[idx].fluence_geo = -1
-                        self.antenna[idx].fluence_ce = -1
-                        self.antenna[idx].fluence_evB = np.abs(f_vec[0])
-                        self.antenna[idx].fluence_evvB = np.abs(f_vec[1])
-                        self.antenna[idx].r_proj = dt['antenna_position_vBvvB'][idx][:]
-
-                
+                self.init_felix()
                 return
 
 
@@ -732,17 +557,17 @@ class EnergyRec:
                 self.GRANDshower.localize(latitude=45.5, longitude=90.5)
 
             
-            ev = self.GRANDshower.core - self.GRANDshower.maximum
+            ev = self.shower.r_core - self.shower.r_x_max
             ev /= ev.norm()
             ev = ev.T[0]
             self.shower.ev = ev
 
-            evB = np.cross(ev, self.GRANDshower.geomagnet.T[0])
+            evB = np.cross(ev, self.shower.eB)
             evB /= np.linalg.norm(evB)
             self.shower.evB = evB
             evvB = np.cross(ev, evB)
             self.shower.evvB = evvB
-            eB = self.GRANDshower.geomagnet.T[0]
+            eB = self.shower.eB
             eB /= np.linalg.norm(eB)
             self.shower.eB = eB
 
@@ -750,13 +575,20 @@ class EnergyRec:
                 evB, evvB, ev
                 ]).T)
 
-            self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
             self.shower_projection()
 
             self.Eval_fluences()
             # self.plot_antpos()
 
-            self.early_late()
+            d_Xmax = np.linalg.norm(
+               (self.shower.r_core - self.shower.r_x_max)
+            )
+            try:
+                antenna_list = self.antenna.values()
+            except:
+                antenna_list = self.antenna
+            for ant in antenna_list:
+                ant.wEarlyLate = self.early_late(ant.r_proj, self.shower.r_Core_proj, d_Xmax)
 
             if self.printLevel > 0:
                 print("* EnergyRec instance starting values summary:")
@@ -776,6 +608,122 @@ class EnergyRec:
         else:
             message = "ERROR: " + self.simulation + " not found!"
             raise ValueError(message)
+
+    def init_coreas(self):
+        self.GRANDshower = ShowerEvent.load(self.simulation)
+        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
+        self.fill_from_GRANDshower()
+    
+    def init_zhaires(self):
+        self.GRANDshower = ZhairesShower._from_datafile(self.simulation)
+
+        # Fixing Aires to GRAND conventions
+        for ant in range(len(self.GRANDshower.fields)):
+            self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
+                ant
+            ].electric.E[0]
+
+            from astropy.coordinates.matrix_utilities import \
+                rotation_matrix
+
+            rotation = rotation_matrix(-90 * u.deg, axis="z")
+
+            self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
+                ant
+            ].electric.E.transform(rotation)
+
+            self.GRANDshower.fields[ant].electric.r = self.GRANDshower.fields[
+                ant
+            ].electric.r.transform(rotation)
+
+        self.GRANDshower.localize(latitude=45.5, longitude=90.5)
+        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
+        self.fill_from_GRANDshower()
+
+    def init_custom(self):
+        self.GRANDshower, bool_traces = self.custom_from_datafile(
+                    self.simulation, self.site_height
+                )
+
+        if bool_traces:
+            # Fixing Aires to GRAND conventions
+            for ant in range(len(self.GRANDshower.fields)):
+                self.GRANDshower.fields[
+                    ant
+                ].electric.E = self.GRANDshower.fields[ant].electric.E[0]
+                from astropy.coordinates.matrix_utilities import \
+                    rotation_matrix
+
+                rotation = rotation_matrix(-0 * u.deg, axis="z")
+
+                self.GRANDshower.fields[
+                    ant
+                ].electric.E = self.GRANDshower.fields[
+                    ant
+                ].electric.E.transform(
+                    rotation
+                )
+
+                self.GRANDshower.fields[
+                    ant
+                ].electric.r = self.GRANDshower.fields[
+                    ant
+                ].electric.r.transform(
+                    rotation
+                )
+
+            if self.simulation_type == "custom":
+                self.simulation_type == "zhaires"
+        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
+        self.fill_from_GRANDshower()
+
+    def init_pengxiong(self):
+        self.GRANDshower, bool_traces = self.custom_from_pengxiong(
+                    self.simulation, self.site_height, self.evt_num
+                )
+        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
+        self.fill_from_GRANDshower()
+    
+    def init_felix(self):
+        self.GRANDshower, bool_traces = self.custom_from_felix(
+                    self.simulation
+                )
+        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
+        with h5py.File(self.simulation, "r") as file:
+            antenna_list = self.antenna.values()
+            dt = file['highlevel']['obsplane_2900_gp_vB_vvB']
+            for ant in antenna_list:
+                idx = ant.ID
+                self.antenna[idx].fluence = dt['energy_fluence'][idx]
+
+                f_vec = dt['energy_fluence_vector'][idx]
+                self.antenna[idx].fluence_geo = -1
+                self.antenna[idx].fluence_ce = -1
+                self.antenna[idx].fluence_evB = np.abs(f_vec[0])
+                self.antenna[idx].fluence_evvB = np.abs(f_vec[1])
+                self.antenna[idx].r_proj = dt['antenna_position_vBvvB'][idx][:]
+
+    def fill_from_GRANDshower(self):
+        self.shower.r_core = self.GRANDshower.core
+        self.shower.r_x_max = self.GRANDshower.maximum
+        self.shower.eB = self.GRANDshower.geomagnet.T[0]
+        self.shower.energy = self.GRANDshower.energy
+
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
+
+        for ant in antenna_list:
+            idx = ant.ID
+            self.antenna[idx].trace_x  = self.GRANDshower.fields[idx].electric.E.x
+            self.antenna[idx].trace_y  = self.GRANDshower.fields[idx].electric.E.y
+            self.antenna[idx].trace_z  = self.GRANDshower.fields[idx].electric.E.z
+            self.antenna[idx].time = self.GRANDshower.fields[idx].electric.t
+            self.antenna[idx].r_ground = self.GRANDshower.fields[idx].electric.r.T[0]
+
+
+    
 
     @staticmethod
     def custom_from_datafile(path: Path, site_height=0) -> ZhairesShower:
@@ -1014,10 +962,10 @@ class EnergyRec:
 
         """
 
-        thetaCR = self.GRANDshower.zenith
-        phiCR = self.GRANDshower.azimuth
-        E = self.GRANDshower.energy
-        Core = self.GRANDshower.core
+        thetaCR = self.shower.thetaCR
+        phiCR = self.shower.phiCR
+        E = self.shower.energy
+        Core = self.shower.r_core
         B = self.GRANDshower.geomagnet
 
         print("* Simulation summary:")
@@ -1042,14 +990,14 @@ class EnergyRec:
 
         """
 
-        if id < len(self.GRANDshower.fields):
-            Ex = self.GRANDshower.fields[id].electric.E.x
-            Ey = self.GRANDshower.fields[id].electric.E.y
-            Ez = self.GRANDshower.fields[id].electric.E.z
-            EvB = self.shower.traces_proj[id].x
-            EvvB = self.shower.traces_proj[id].y
-            Ev = self.shower.traces_proj[id].z
-            time = self.GRANDshower.fields[id].electric.t
+        if id < len(self.antenna):
+            Ex = self.antenna[id].trace_x
+            Ey = self.antenna[id].trace_y
+            Ez = self.antenna[id].trace_z
+            EvB = self.antenna[id].trace_evB
+            EvvB = self.antenna[id].trace_evvB
+            Ev = self.antenna[id].trace_ev
+            time = self.antenna[id].t
 
         global_peak = np.max(np.abs([Ex, Ey, Ez]))
         peak_index = np.where(np.abs([Ex, Ey, Ez]) == global_peak)[0][0]
@@ -1110,47 +1058,33 @@ class EnergyRec:
 
         """
 
-        if id < len(self.GRANDshower.fields):
-            time = self.GRANDshower.fields[id].electric.t
+        if id < len(self.antenna):
+            time = self.antenna[id].time
 
-            # Ex = self.GRANDshower.fields[id].electric.E.x.to("V/m").value
-            # Ey = self.GRANDshower.fields[id].electric.E.y.to("V/m").value
-            # Ez = self.GRANDshower.fields[id].electric.E.z.to("V/m").value
-            # traces  = np.c_[time,Ex,Ey,Ez]
-
-            EvB = self.shower.traces_proj[id][:,0]
-            EvvB = self.shower.traces_proj[id][:,1]
-            Ev = self.shower.traces_proj[id][:,2]
+            EvB = self.antenna[id].trace_evB
+            EvvB = self.antenna[id].trace_evvB
+            Ev = self.antenna[id].trace_ev
             traces = np.c_[time, EvB, EvvB, Ev]
         else:
             message = "ERROR: id = " + str(id) + " is out of the antenna array bounds!"
             raise ValueError(message)
 
-        # Check if peak is within the threshold range
-        peak = np.max(np.abs(traces[:, 1:4]))
-        if peak < self.thres_low or peak > self.thres_high:
-            self.antenna[id].fluence = -1
-            return
+        fluence_evB, SNR = Antenna.compute_fluence(time, EvB)
+        fluence_evvB, SNR = Antenna.compute_fluence(time, EvvB)
+        fluence_ev, SNR = Antenna.compute_fluence(time, Ev)
+        fluence = np.sqrt(fluence_evB * fluence_evB
+                          + fluence_evvB * fluence_evvB
+                          + fluence_ev * fluence_ev)
 
-        traces_cut = Antenna.offset_and_cut(traces)
-        traces_fft = Antenna.fft_filter(
-            traces_cut, self.nu_low, self.nu_high, self.bool_plot
-        )
-        traces_rec = Antenna.trace_recover(traces_cut[:, 0], traces_fft, self.bool_plot)
+        r_plane = self.antenna[id].r_proj[0:2]
+        fluence_geo, fluence_ce = Antenna.compute_f_geo_ce(fluence_evB, fluence_evvB , r_plane)
 
-        # Check if peak is within the threshold range after offset, cut and trace recover.
-        if np.max(np.abs(traces_rec[:, 1:4])) < self.thres_low:
-            self.antenna[id].fluence = -1
-            self.antenna[id].fluence_geo = -1
-            self.antenna[id].fluence_ce = -1
-            self.antenna[id].fluence_evB = -1
-            self.antenna[id].fluence_evvB = -1
-            return
-        else:
-            hilbert_env = Antenna.hilbert_envelope(traces_rec, self.bool_plot)
-            self.antenna[id].compute_fluence(
-                traces_rec[:, 0], hilbert_env, self.SNR_thres, self.bool_plot
-            )
+
+        self.antenna[id].fluence = fluence
+        self.antenna[id].fluence_evB = fluence_evB
+        self.antenna[id].fluence_evvB = fluence_evvB
+        self.antenna[id].fluence_geo = fluence_geo
+        self.antenna[id].fluence_ce = fluence_ce
 
     def Eval_fluences(self):
         """
@@ -1168,7 +1102,7 @@ class EnergyRec:
         Fills self.antenna.fluence, self.antenna.fluence_evB, self.antenna.fluence_evvB, self.antenna.fluence geo and self.antenna.fluence_ce for all antennas.
 
         """
-        n_ant = len(self.GRANDshower.fields)
+        n_ant = len(self.antenna)
 
         step = round(n_ant / 10)
 
@@ -1178,7 +1112,6 @@ class EnergyRec:
             antenna_list = self.antenna
 
         if self.simulation_type == "custom":
-            shower_frame = self.GRANDshower.shower_frame()
             RunInfo = Table.read(self.simulation, path="RunInfo")
             EventName = RunInfo["EventName"][0]
             AntennaFluenceInfo = Table.read(
@@ -1216,27 +1149,6 @@ class EnergyRec:
             if ant.fluence > 0:
                 ant.sigma_f = np.sqrt(ant.fluence)
 
-            if ant.fluence > self.f_thres:
-                r_plane = ant.r_proj[0:2]
-                cosPhi = np.dot(r_plane, np.array([1, 0])) / np.linalg.norm(r_plane)
-                sinPhi = np.sqrt(1 - cosPhi * cosPhi)
-
-                if (
-                    sinPhi >= 0.2
-                ):  # Exclude stations too close to the v\times B direction
-                    my_fluence_geo = np.sqrt(ant.fluence_evB) - (
-                        cosPhi / sinPhi
-                    ) * np.sqrt(ant.fluence_evvB)
-                    ant.fluence_geo = my_fluence_geo * my_fluence_geo
-                    ant.fluence_ce = ant.fluence_evvB / (sinPhi * sinPhi)
-                else:
-                    ant.fluence_geo = -1
-                    ant.fluence_ce = -1
-
-            else:
-                ant.fluence_geo = -1
-                ant.fluence_ce = -1
-
         if self.printLevel > 0:
             print("\n")
 
@@ -1269,7 +1181,7 @@ class EnergyRec:
         eB = self.shower.eB
         alpha = np.arccos(np.dot(self.shower.ev, eB))
         d_Xmax = np.linalg.norm(
-            (self.GRANDshower.core - self.GRANDshower.maximum)
+            (self.shower.r_core - self.shower.r_x_max)
         )
         rho_Xmax = SymFit.rho(d_Xmax, -self.shower.ev)
 
@@ -1368,7 +1280,7 @@ class EnergyRec:
 
         """
 
-        n_ant = len(self.GRANDshower.fields)
+        n_ant = len(self.antenna)
 
         try:
             antenna_list = self.antenna.values()
@@ -1376,8 +1288,8 @@ class EnergyRec:
             antenna_list = self.antenna
 
         r_ant = np.zeros((n_ant, 3))
-        for idx, (key, value) in enumerate(self.GRANDshower.fields.items()):
-            r_ant[idx] = value.electric.r.T[0]
+        for idx, ant in enumerate(antenna_list):
+            r_ant[idx] = ant.r_ground
 
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
         sel = np.where(fluence_arr > 0)[0]
@@ -1437,30 +1349,30 @@ class EnergyRec:
         Fills self.shower.core_proj, self.antenna.r_proj for all antennas and self.shower.traces_proj.
 
         """
-        # The antenna projection
-        n_ant = len(self.GRANDshower.fields)
+        try:
+            antenna_list = self.antenna.values()
+        except:
+            antenna_list = self.antenna
 
-        traces_proj = {}
-
-        for key, value in self.GRANDshower.fields.items():
-            r_ant = value.electric.r.T[0] - self.GRANDshower.core.T[0]
-            # if self.simulation_type == "starshape":
-            #    self.antenna[key].r_proj = r_ant.xyz.value
-            # else:
-            self.antenna[key].r_proj = np.dot(self.shower.projection_mat, r_ant)
+        for ant in antenna_list:
+            r_ant = ant.r_ground - self.shower.r_core.T[0]
+            ant.r_proj = np.dot(self.shower.projection_mat, r_ant)
 
             if self.simulation_type != "custom":
-                temp = self.GRANDshower.fields[key].electric.E
-                E = zip(temp.x ,temp.y, temp.z)
-                traces_proj[key] = np.array([np.dot(self.shower.projection_mat, E_entry) for E_entry in E])
+                E = zip(ant.trace_x, ant.trace_y, ant.trace_z)
+                traces_proj = np.array([np.dot(self.shower.projection_mat, E_entry) for E_entry in E])
+                ant.trace_evB = traces_proj[:,0]
+                ant.trace_evvB = traces_proj[:,1]
+                ant.trace_ev = traces_proj[:,2]
             else:
-                traces_proj[key] = None
+                ant.trace_evB = None
+                ant.trace_evvB = None
+                ant.trace_ev = None
 
-        core = self.GRANDshower.core.T[0] - self.GRANDshower.core.T[0]
+        core = self.shower.r_core.T[0] - self.shower.r_core.T[0]
         r_Core_proj = np.dot(self.shower.projection_mat, core)
 
         self.shower.r_Core_proj = r_Core_proj
-        self.shower.traces_proj = traces_proj
 
     def model_fit(self, filename="", Cs=None):
         """
@@ -1535,7 +1447,8 @@ class EnergyRec:
             print("--> Done!")
             print("\n")
 
-    def early_late(self):
+    @staticmethod
+    def early_late(r_proj, r_core_proj, d_xmax):
         """
         Evaluates the early-late correction factor.
 
@@ -1549,23 +1462,16 @@ class EnergyRec:
         Fills self.antenna.wEarlyLate for all the antennas and self.shower.d_Xmax.
 
         """
-        rCore = self.GRANDshower.core.T[0]
-        rXmax = self.GRANDshower.maximum.T[0] - rCore
 
-        self.shower.d_Xmax = np.linalg.norm(rXmax)
-        R_0 = np.linalg.norm(rXmax)
+        R_0 = d_xmax
+        
+        r_ant = r_proj - r_core_proj
+        R = (
+            R_0 + r_ant[2]
+        )  ## R_ant[2] is the distance from the core projected into ev
+        wEarlyLate = R_0 / R
 
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        for ant in antenna_list:
-            r_ant = ant.r_proj - self.shower.r_Core_proj
-            R = (
-                R_0 + r_ant[2]
-            )  ## R_ant[2] is the distance from the core projected into ev
-            ant.wEarlyLate = R_0 / R
+        return wEarlyLate
 
 
 class AERA:
@@ -1874,7 +1780,7 @@ class AERA:
             Sradio = (A * np.pi / sin2Alpha) * (
                 sigma ** 2.0 - Cs[0] * (Cs[3] ** 2.0) * np.exp(2 * Cs[4] * sigma)
             )
-            print(*resx, self.GRANDshower.energy, Sradio, file=bestfit)
+            print(*resx, self.shower.energy, Sradio, file=bestfit)
 
         else:
             print(*resx, file=bestfit)
