@@ -20,49 +20,28 @@
 #     grand software fully integrated; \n
 # Written by Bruno L. Lago
 
-import ctypes
-import glob
-import math
-import re
-import sys
-from copy import deepcopy
-from datetime import datetime
-from pathlib import Path
 
-import astropy.units as u
-# for custom_from_datafile
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
-from grand.tools.coordinates import (CartesianRepresentation,
-                                 SphericalRepresentation)
-from astropy.table import Table
-from grand import ECEF, LTP, Geodetic, Rotation
-from grand.simulation import ElectricField, ShowerEvent, ZhairesShower
-from grand.simulation.pdg import ParticleCode
-from grand.simulation.shower.generic import CollectionEntry, FieldsCollection
-from mpl_toolkits.mplot3d import Axes3D
-from scipy import stats
 from scipy.fftpack import fft, ifft
 from scipy.signal import hilbert
 
-import ROOT
-event_lib = "../../MachineLearning/EnergyRec/Event/libSimuEvent.so"
 
-try:
-    ROOT.gSystem.Load(event_lib)
-except:
-    pass
-
-class Input:
+class RawData:
     """
-    A class for the input attributes.
+    A class for the raw input attributes.
 
     Attributes
     ----------
-    r_ant_arr:
+    ant_ID:
+        The antenna ID
+    r_ground:
         The antenna positions
+    r_core:
+        Shower core coordinates
+    traces_time:
+        The trace times
     traces_x:
         The traces in x direction
     traces_y:
@@ -73,98 +52,79 @@ class Input:
         Unitary vector in the velocity direction
     eB:
         Unitary vector on the magnetic field direction
-    r_core:
-        Shower core coordinates
     r_x_max:
         X max position w.r.t. the shower core
     energy:
         Monte Carlo energy
     """
 
+    ant_ID = None
+    r_ground = None
+    r_core = None
+    traces_time = None
+    traces_x = None
+    traces_y = None
+    traces_z = None
+    ev = None
+    eB = None
+    r_x_max = None
+    energy = None
+
+    def __init__(self, dict):
+        self.ant_ID = dict["ant_ID"]
+        self.r_ground = dict["r_ground"]
+        self.r_core = dict["r_core"]
+        self.traces_time = dict["traces_time"]
+        self.traces_x = dict["traces_x"]
+        self.traces_y = dict["traces_y"]
+        self.traces_z = dict["traces_z"]
+        self.ev = dict["ev"]
+        self.eB = dict["eB"]
+        self.r_x_max = dict["r_x_max"]
+        self.energy = dict["energy"]
+
+class FluenceData:
+    """
+    A class for the reconstruction input attributes.
+
+    Attributes
+    ----------
+    r_shower:
+        The antenna positions in the shower plane
+    r_core_shower:
+        The shower core position in the shower plane
+    fluence_evB:
+        Fluence in the v x B direction
+    fluence_evvB:
+        Fluence in the v x v x B direction
+    fluence:
+        Total fluence
+    energy:
+        Monte Carlo energy
+    """
+
+    r_shower = None
+    r_core_shower = None
+    fluence_evB = None
+    fluence_evvB = None
+    fluence = None
+    energy = None
+
+    def __init__(self, dict):
+        self.r_shower = dict["r_shower"]
+        self.r_core_shower = dict["r_core_shower"]
+        self.fluence_evB = dict["fluence_evB"]
+        self.fluence_evvB = dict["fluence_evvB"]
+        self.fluence = dict["fluence"]
+        self.energy = dict["energy"]
+
 class Antenna:
     """
     A class for the antenna signal processing.
 
-    It has tools for the FFT, trace_recover and fluence evaluation.
-
-    Attributes
-    ----------
-    ID:
-        An id for the antenna
-    fluence:
-        he total fluence.
-    sigma_f:
-        An estimate of the uncertainty of the fluence.
-    fluence_geo:
-        The geomagnetic component of the fluence
-    fluence_ce:
-        The charge ecess component of the fluence
-    fluence_evB:
-        The fluence on the evB direction
-    fluence_evvB:
-        The fluence on the evvB direction
-    wEarlyLate:
-        A weight to be used for the early-late correction
-    r_ground:
-        The position of the antenna in the ground
-    r_proj:
-        The position of the antenna in the shower plane
-    trace_x:
-        Electric field trace on the x direction
-    trace_y:
-        Electric field trace on the y direction
-    trace_z:
-        Electric field trace on the z direction
-    trace_evB:
-        Electric field trace on the evB direction
-    trace_evvB:
-        Electric field trace on the evvB direction
-    trace_ev:
-        Electric field trace on the ev direction
-    time:
-        Time array for the traces    
+    It has tools for the FFT, trace_recover and fluence evaluation.  
 
     """
-
-    ## An id for the antenna
-    ID = None
-    ## The total fluence.
-    fluence = None
-    ## An estimate of the uncertainty of the fluence.
-    sigma_f = None
-    ## The geomagnetic component of the fluence
-    fluence_geo = None
-    ## The charge ecess component of the fluence
-    fluence_ce = None
-    ## The fluence on the evB direction
-    fluence_evB = None
-    ## The fluence on the evvB direction
-    fluence_evvB = None
-    ## A wight to be used for the early-late correction
-    wEarlyLate = None
-    ## The position of the antenna in the shower plane
-    r_proj = None
-    ## Electric field trace on the x direction
-    trace_x = None
-    ## Electric field trace on the y direction    
-    trace_y = None
-    ## Electric field trace on the z direction
-    trace_z = None
-    ## Electric field trace on the evB direction
-    trace_evB = None
-    ## Electric field trace on the evvB direction    
-    trace_evvB = None
-    ## Electric field trace on the ev direction
-    trace_ev = None
-    ## Time array for the traces
-    time = None
-
-    def __init__(self, ID):
-        """
-        The default init function for the class Antenna.
-
-        """
-        self.ID = ID
 
     @staticmethod
     def fft_filter(time_arr, trace, nu_low=50, nu_high=200):
@@ -239,7 +199,7 @@ class Antenna:
         return yy
 
     @staticmethod
-    def hilbert_envelope(time_arr, trace_rec):
+    def hilbert_envelope(trace_rec):
         r"""
         Evaluates the hilbert envelope of the recunstructed traces.
 
@@ -264,7 +224,7 @@ class Antenna:
         return hilbert_env
 
     @staticmethod
-    def compute_fluence(time_arr, trace, SNR_thres=10):
+    def compute_fluence(time_arr, trace, nu_low = 50, nu_high = 200, SNR_thres=10):
         r"""
         Computes the fluence for a given antenna.
 
@@ -292,11 +252,11 @@ class Antenna:
         Fills self.fluence, self.fluence_geo, self.fluence_ce, self.fluence_evB and self.fluence_evvB
         """
 
-        trace_fft = Antenna.fft_filter(time_arr, trace)
+        trace_fft = Antenna.fft_filter(time_arr, trace, nu_low, nu_high)
         trace_rec = Antenna.trace_recover(time_arr, trace_fft)
 
         # Check if peak is within the threshold range after offset, cut and trace recover.
-        hilbert_env = Antenna.hilbert_envelope(time_arr, trace_rec)
+        hilbert_env = Antenna.hilbert_envelope(trace_rec)
 
         tt = time_arr - np.min(time_arr)
         delta_tt = (tt[1] - tt[0]) * 1e-9  # convert from ns to seconds
@@ -372,69 +332,6 @@ class Antenna:
 
         return fluence_geo, fluence_ce
 
-class Shower:
-    r"""
-    A class for the shower parameters.
-
-    Attributes
-    ----------
-
-    ev:
-        Unitary along :math:`\vec{v}`.
-    eB:
-        Unitary along :math:`\vec{B}`.
-    evB:
-        Unitary along :math:`\vec{v}\times\vec{B}`.
-    evvB:
-        Unitary along :math:`\vec{v}\times\vec{v}\times\vec{B}`.
-    thetaCR:
-        The shower zenith in deg.
-    phitCR:
-        The shower azimuth in deg.
-    energy:
-        The cosmic ray energy
-    r_Core_proj:
-        The position of the core projected into the shower plane.
-    bool_plot: bool
-        Toggles the plots on and off.
-    d_Xmax:
-        Distance to Xmax from the simulation.
-
-    """
-    ## Unitary along \f$\vec{v}\f$.
-    ev = None
-    ## Unitary along \f$\vec{B}\f$.
-    eB = None
-    ## Unitary along \f$\vec{v}\times\vec{B}\f$.
-    evB = None
-    ## Unitary along \f$\vec{v}\times\vec{v}\times\vec{B}\f$.
-    evvB = None
-    ## The shower inclination.
-    thetaCR = None
-    ## The shower azimuthal angle.
-    phiCR = None
-    ## The energy of the shower.
-    energy = None
-    ## The position of the core projected into the shower plane.
-    r_Core_proj = None
-    ## Toggles the plots on and off.
-    bool_plot = False
-    ## Distance to Xmax.
-    d_Xmax = None
-    ## Projection matrix
-    projection_mat = None
-
-    def __init__(self):
-        """
-        The default init function for the class Shower.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec.Shower
-                A class instance.
-        """
-
-
 class EnergyRec:
     """
     A class for the energy reconstruction.
@@ -446,10 +343,8 @@ class EnergyRec:
 
     bool_plot: bool
         Toggles the plots on and off (default: false).
-
-    bool_EarlyLate: bool
-        Toggles the early-late correction on and off (default: true).
-
+    bool_el: bool
+        Toggles the early late correction on and off (default: true).
     nu_low:
         The lower frequency of the signal filter in MHz (default: 50).
     nu_high:
@@ -462,29 +357,20 @@ class EnergyRec:
         A initial upper threshold for selecting antennas in V/m (default: 1).
     f_thres:
         A final lower threshold for selecting antennas in eV/m^2 (default: 0.01).
-
-    simulation: path, file
-        The path to the simulation directory or file (default: None).
-
-    antenna: modERec.EnergyRec.Antenna
-        An array of type modERec.EnergyRec.Antenna.
-
-    shower: modERec.EnergyRec.Shower
-        An instance of the class modERec.EnergyRec.Shower.
-
+    raw_data:
+        An instance of the RawData class
+    fluence_data:
+        An instance of the FluenceData class
     bestfit:
         The bestfit values of the parameters (default: None).
-
-    GRANDshower:
-        The shower imported using the standard grand package(default: None).
     printLevel: int
         A print level variable (default: 0).
     """
 
     ## Toggles the plots on and off.
     bool_plot = False
-    ## Toggles the early-late correction on and off.
-    bool_EarlyLate = True
+    ## Toggles early late correction on and off.
+    bool_el = True
     ## The lower frequency of the signal filter in MHz.
     nu_low = 50
     ## The upper frequency of the signal filter in MHz.
@@ -497,28 +383,16 @@ class EnergyRec:
     thres_high = 1
     ## A final lower threshold for selecting antennas in eV/m^2.
     f_thres = 0.01
-    ## The path to the simulation.
-    simulation = None
-    ## The simulation type (coreas, zhaires, custom).
-    simulation_type = "coreas"
-    ## An instance of the class Antenna
-    antenna = None
-    ## An instance of the class Shower
-    shower = None
-    ## An instance of the class Input
-    shower = None
+    ## An instance of the class RawData
+    raw_data = None
+    ## An instance of the class FluenceData
+    fluence_data = None
     ## The bestfit values of the parameters
     bestfit = None
-    ## The shower imported using the standard grand package
-    GRANDshower = None
-    ## The height of the site
-    site_height = 0
-    ## For PengXiong files with more than one event
-    evt_num = 0
     ## A print level variable
     printLevel = 0
 
-    def __init__(self, simulation):
+    def __init__(self, my_input):
         """
         The default init function for the class EnergyRec.
 
@@ -529,427 +403,78 @@ class EnergyRec:
         simulation:
             The path to the simulation directory or file.
         """
-        self.simulation = simulation
-        self.shower = Shower()
 
-        if Path(self.simulation).is_dir() or self.simulation.endswith("hdf5") or self.simulation.endswith("root"):
+        if(isinstance(my_input, FluenceData)):
+            self.fluence_data = my_input
 
-            if self.simulation_type == "coreas":
-                self.init_coreas()
-            elif self.simulation_type == "zhaires":
-                self.init_zhaires()
-                
+        elif(isinstance(my_input, RawData)):
+            self.raw_data = my_input
+            ev = my_input.ev
 
-            elif (
-                self.simulation_type == "custom" or self.simulation_type == "starshape"
-            ):
-                self.init_custom()
-
-            elif (self.simulation_type == "pengxiong"):
-                self.init_pengxiong()
-            
-            elif (self.simulation_type == "felix"):
-                self.init_felix()
-                return
-
-
-            if Path(self.simulation).is_dir():
-                self.GRANDshower.localize(latitude=45.5, longitude=90.5)
-
-            
-            ev = self.shower.r_core - self.shower.r_x_max
-            ev /= ev.norm()
-            ev = ev.T[0]
-            self.shower.ev = ev
-
-            evB = np.cross(ev, self.shower.eB)
+            evB = np.cross(ev, my_input.eB)
             evB /= np.linalg.norm(evB)
-            self.shower.evB = evB
             evvB = np.cross(ev, evB)
-            self.shower.evvB = evvB
-            eB = self.shower.eB
-            eB /= np.linalg.norm(eB)
-            self.shower.eB = eB
-
-            self.shower.projection_mat = np.linalg.inv(np.array([
+            projection_mat = np.linalg.inv(np.array([
                 evB, evvB, ev
                 ]).T)
-
-            self.shower_projection()
-
-            self.Eval_fluences()
-            # self.plot_antpos()
-
-            d_Xmax = np.linalg.norm(
-               (self.shower.r_core - self.shower.r_x_max)
-            )
-            try:
-                antenna_list = self.antenna.values()
-            except:
-                antenna_list = self.antenna
-            for ant in antenna_list:
-                ant.wEarlyLate = self.early_late(ant.r_proj, self.shower.r_Core_proj, d_Xmax)
-
-            if self.printLevel > 0:
-                print("* EnergyRec instance starting values summary:")
-                print("--> bool_plot = ", self.bool_plot)
-                print("--> bool_EarlyLate = ", self.bool_EarlyLate)
-                print("--> nu_low = ", self.nu_low)
-                print("--> nu_high = ", self.nu_high)
-                print("--> SNR_thres = ", self.SNR_thres)
-                print("--> thres_low = ", self.thres_low)
-                print("--> thres_high = ", self.thres_high)
-                print("--> f_thres = ", self.f_thres)
-                print("\n")
-
-        elif Path(self.simulation).is_file():
-            self.model_fit(self.simulation)
-
-        else:
-            message = "ERROR: " + self.simulation + " not found!"
-            raise ValueError(message)
-
-    def init_coreas(self):
-        self.GRANDshower = ShowerEvent.load(self.simulation)
-        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
-        self.fill_from_GRANDshower()
-    
-    def init_zhaires(self):
-        self.GRANDshower = ZhairesShower._from_datafile(self.simulation)
-
-        # Fixing Aires to GRAND conventions
-        for ant in range(len(self.GRANDshower.fields)):
-            self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
-                ant
-            ].electric.E[0]
-
-            from astropy.coordinates.matrix_utilities import \
-                rotation_matrix
-
-            rotation = rotation_matrix(-90 * u.deg, axis="z")
-
-            self.GRANDshower.fields[ant].electric.E = self.GRANDshower.fields[
-                ant
-            ].electric.E.transform(rotation)
-
-            self.GRANDshower.fields[ant].electric.r = self.GRANDshower.fields[
-                ant
-            ].electric.r.transform(rotation)
-
-        self.GRANDshower.localize(latitude=45.5, longitude=90.5)
-        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
-        self.fill_from_GRANDshower()
-
-    def init_custom(self):
-        self.GRANDshower, bool_traces = self.custom_from_datafile(
-                    self.simulation, self.site_height
-                )
-
-        if bool_traces:
-            # Fixing Aires to GRAND conventions
-            for ant in range(len(self.GRANDshower.fields)):
-                self.GRANDshower.fields[
-                    ant
-                ].electric.E = self.GRANDshower.fields[ant].electric.E[0]
-                from astropy.coordinates.matrix_utilities import \
-                    rotation_matrix
-
-                rotation = rotation_matrix(-0 * u.deg, axis="z")
-
-                self.GRANDshower.fields[
-                    ant
-                ].electric.E = self.GRANDshower.fields[
-                    ant
-                ].electric.E.transform(
-                    rotation
-                )
-
-                self.GRANDshower.fields[
-                    ant
-                ].electric.r = self.GRANDshower.fields[
-                    ant
-                ].electric.r.transform(
-                    rotation
-                )
-
-            if self.simulation_type == "custom":
-                self.simulation_type == "zhaires"
-        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
-        self.fill_from_GRANDshower()
-
-    def init_pengxiong(self):
-        self.GRANDshower, bool_traces = self.custom_from_pengxiong(
-                    self.simulation, self.site_height, self.evt_num
-                )
-        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
-        self.fill_from_GRANDshower()
-    
-    def init_felix(self):
-        self.GRANDshower, bool_traces = self.custom_from_felix(
-                    self.simulation
-                )
-        self.antenna = {ant: Antenna(ant) for ant in self.GRANDshower.fields.keys()}
-        with h5py.File(self.simulation, "r") as file:
-            antenna_list = self.antenna.values()
-            dt = file['highlevel']['obsplane_2900_gp_vB_vvB']
-            for ant in antenna_list:
-                idx = ant.ID
-                self.antenna[idx].fluence = dt['energy_fluence'][idx]
-
-                f_vec = dt['energy_fluence_vector'][idx]
-                self.antenna[idx].fluence_geo = -1
-                self.antenna[idx].fluence_ce = -1
-                self.antenna[idx].fluence_evB = np.abs(f_vec[0])
-                self.antenna[idx].fluence_evvB = np.abs(f_vec[1])
-                self.antenna[idx].r_proj = dt['antenna_position_vBvvB'][idx][:]
-
-    def fill_from_GRANDshower(self):
-        self.shower.r_core = self.GRANDshower.core
-        self.shower.r_x_max = self.GRANDshower.maximum
-        self.shower.eB = self.GRANDshower.geomagnet.T[0]
-        self.shower.energy = self.GRANDshower.energy
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        for ant in antenna_list:
-            idx = ant.ID
-            self.antenna[idx].trace_x  = self.GRANDshower.fields[idx].electric.E.x
-            self.antenna[idx].trace_y  = self.GRANDshower.fields[idx].electric.E.y
-            self.antenna[idx].trace_z  = self.GRANDshower.fields[idx].electric.E.z
-            self.antenna[idx].time = self.GRANDshower.fields[idx].electric.t
-            self.antenna[idx].r_ground = self.GRANDshower.fields[idx].electric.r.T[0]
-
-
-    
-
-    @staticmethod
-    def custom_from_datafile(path: Path, site_height=0) -> ZhairesShower:
-        with h5py.File(path, "r") as fd:
-            if not "RunInfo.__table_column_meta__" in fd["/"]:
-                return super()._from_datafile(path)
-
-            for name in fd["/"].keys():
-                if not name.startswith("RunInfo"):
-                    break
-
-            bool_traces = True
-            event = fd[f"{name}/EventInfo"]
-            antennas = fd[f"{name}/AntennaInfo"]
-            try:
-                traces = fd[f"{name}/AntennaTraces"]
-            except:
-                bool_traces = False
-
-            fields = FieldsCollection()
-
-            pattern = re.compile("([0-9]+)$")
-            for antenna, x, y, z, *_ in antennas:
-                r = CartesianRepresentation(float(x), float(y), float(z))
-                if bool_traces:
-                    tag = antenna.decode()
-                    antenna = int(pattern.search(tag)[1])
-                    tmp = traces[f"{tag}/efield"][:]
-                    efield = tmp.view("f4").reshape(tmp.shape + (-1,))
-                    t = np.asarray(efield[:, 0], "f8")
-                    Ex = np.asarray(efield[:, 1], "f8")
-                    Ey = np.asarray(efield[:, 2], "f8")
-                    Ez = np.asarray(efield[:, 3], "f8")
-                else:
-                    t = None
-                    E = None
-                electric = ElectricField(
-                    t, CartesianRepresentation(x=Ex, y=Ey, z=Ez), r
-                    )
-                fields[antenna] = CollectionEntry(electric)
-
-            primary = {
-                "Fe^56": ParticleCode.IRON,
-                "Gamma": ParticleCode.GAMMA,
-                "Proton": ParticleCode.PROTON,
-            }[event[0, "Primary"].decode()]
-
-            geomagnet = SphericalRepresentation(
-                theta=float(90 + event[0, "BFieldIncl"]),
-                phi=0,
-                r=float(event[0, "BField"])
-            )
-
-            try:
-                latitude = event[0, "Latitude"].decode("utf-8")
-                longitude = event[0, "Longitude"].decode("utf-8")
-                declination = event[0, "BFieldDecl"]
-                obstime = datetime.strptime(
-                    event[0, "Date"].decode("utf-8").strip(), "%d/%b/%Y"
-                )
-            except ValueError:
-                frame = None
-            else:
-                geodetic = Geodetic(latitude=latitude, longitude=longitude, height=0.0)
-                origin = ECEF(geodetic)
-                frame = LTP(
-                    location=origin,
-                    orientation="NWU",
-                    declination=declination,
-                    obstime=obstime,
-                )
-
-            # my_core = event[0, 'CorePosition'] + np.array([0, 0, site_height])
-            my_core = np.array([0, 0, site_height])
-
-            return (
-                ZhairesShower(
-                    energy=float(event[0, "Energy"]),
-                    zenith=(180 - float(event[0, "Zenith"])),
-                    azimuth=(180 - float(event[0, "Azimuth"])),
-                    primary=primary,
-                    frame=frame,
-                    core=CartesianRepresentation(*my_core),
-                    geomagnet=CartesianRepresentation(geomagnet),
-                    maximum=CartesianRepresentation(
-                        *event[0, "XmaxPosition"]
-                    ),
-                    fields=fields,
-                ),
-                bool_traces,
-            )
-
-
-    @staticmethod
-    def custom_from_pengxiong(path: Path, site_height=0, evt=0) -> ZhairesShower:
-        rootFile = ROOT.TFile(path)
-
-        # getting the trees
-        treeSimu = rootFile.Get("SimuCollection");
-        treeEfield = rootFile.Get("EfieldCollection");
-        treeSignal = rootFile.Get("SignalCollection");
-
-        #setting the object of the classes where Im going to instantiate the trees
-        branch_SimShower = ROOT.SimShower()
-        branch_SimEfield = ROOT.SimEfield()
-        branch_SimSignal = ROOT.SimSignal()
-
-        #setting the adresses of the branches on the created objects of the specific classes
-        treeSimu.SetBranchAddress("SimShowerBranch", branch_SimShower)
-        treeEfield.SetBranchAddress("SimEfieldBranch", branch_SimEfield)
-        treeSignal.SetBranchAddress("SimSignalBranch", branch_SimSignal)
-
-        # read the event
-        treeSimu.GetEntry(evt)
-        treeEfield.GetEntry(evt)
-        treeSignal.GetEntry(evt)
-
-        # TREE SimShower------------------------------------------------------
-        shower_energy = branch_SimShower.Get_primary_Energy()
-        shower_azimuth = branch_SimShower.shower_azimuth
-        shower_zenith = branch_SimShower.shower_zenith
-        shower_Bfield = branch_SimShower.magnetic_field
             
-        # TREE SimEfield------------------------------------------------------
-        positions = branch_SimEfield.Detectors_det_pos_shc
-        t0 = branch_SimEfield.Detectors_t_0
-        t_bin_size = branch_SimEfield.t_bin_size
-        id = branch_SimEfield.Detectors_det_id
-        Detectors_trace_Ex = branch_SimEfield.Detectors_trace_x
-        Detectors_trace_Ey = branch_SimEfield.Detectors_trace_y
-        Detectors_trace_Ez = branch_SimEfield.Detectors_trace_z
+            r_shower = np.array([
+                    np.dot(projection_mat, r_ground) for r_ground in my_input.r_ground
+                    ])
+            
+            r_core_shower = np.dot(projection_mat, my_input.r_core)
+            
+            if self.bool_el:
+                w_early_late = [self.early_late(rr, r_core_shower, np.linalg.norm(my_input.r_x_max - my_input.r_core))
+                            for rr in r_shower]
+            else:
+                w_early_late = np.ones(len(r_shower))
+            
+            r_shower = np.array([(rr - r_core_shower) * ww for rr, ww in zip(r_shower, w_early_late)]) + r_core_shower
+            
+            fluence_x = [
+                Antenna.compute_fluence(xx, yy, self.nu_low, self.nu_high)[0]
+                for xx, yy in zip(my_input.traces_time, my_input.traces_x)
+                ] / (np.array(w_early_late)**2)
+            fluence_y = [
+                Antenna.compute_fluence(xx, yy, self.nu_low, self.nu_high)[0]
+                for xx, yy in zip(my_input.traces_time, my_input.traces_y)
+                ] / (np.array(w_early_late)**2)
+            fluence_z = [
+                Antenna.compute_fluence(xx, yy, self.nu_low, self.nu_high)[0]
+                for xx, yy in zip(my_input.traces_time, my_input.traces_z)
+                ] / (np.array(w_early_late)**2)
+            
+            fluence_site = np.c_[fluence_x, fluence_y, fluence_z]
+            fluence_shower = np.array([
+                    np.dot(projection_mat, f_site) for f_site in fluence_site
+                    ])
 
-        fields = FieldsCollection()
-        for ant in range(len(Detectors_trace_Ex)):
-            r = CartesianRepresentation(x=float(positions[ant][0]),
-                y=float(positions[ant][1]), z=float(positions[ant][2])
-                )
-            antenna = int(id[ant])
-            t = np.asarray(
-                    np.linspace(t0[ant], t0[ant] + 
-                    t_bin_size * len(Detectors_trace_Ex[ant]),
-                    len(Detectors_trace_Ex[ant])),"f8"
-            )
-            Ex = np.asarray(Detectors_trace_Ex[ant], "f8") * 1.e-6 # muV/m to V/m
-            Ey = np.asarray(Detectors_trace_Ey[ant], "f8") * 1.e-6 # muV/m to V/m
-            Ez = np.asarray(Detectors_trace_Ez[ant], "f8") * 1.e-6 # muV/m to V/m
-            electric = ElectricField(
-                t, CartesianRepresentation(x=Ex, y=Ey, z=Ez), r
-                )
-            fields[antenna] = CollectionEntry(electric)
+            fluence_evB = np.abs(fluence_shower[:,1])
+            fluence_evvB = np.abs(fluence_shower[:,2])
+            fluence = [
+                    np.linalg.norm(ff) for ff in fluence_shower
+                    ]
+            energy = my_input.energy
 
-        primary = {
-            "Fe^56": ParticleCode.IRON,
-            "22": ParticleCode.GAMMA,
-            "2212": ParticleCode.PROTON,
-        }[str(*branch_SimShower.shower_type)]
+            self.fluence_data = FluenceData({"r_shower" : r_shower,
+                                  "r_core_shower" : r_core_shower,
+                                  "fluence_evB" : fluence_evB,
+                                  "fluence_evvB" : fluence_evvB,
+                                  "fluence" : fluence,
+                                  "energy" : energy
+                                 })
 
-        geomagnet = SphericalRepresentation(
-            theta=float(90 + np.arctan2(shower_Bfield[2],
-                  shower_Bfield[0])*180/np.pi),
-            phi=0,
-            r=float(np.linalg.norm(shower_Bfield))
-        )
-
-        try:
-            latitude = branch_SimShower.site_lat_long[0]
-            longitude = branch_SimShower.site_lat_long[1]
-            declination = 0
-            obstime = datetime.strptime(
-                str(*branch_SimShower.date).strip(), "%d/%b/%Y"
-            )
-        except ValueError:
-            frame = None
-        else:
-            geodetic = Geodetic(latitude=latitude, longitude=longitude, height=0.0)
-            origin = ECEF(geodetic)
-            frame = LTP(
-                location=origin,
-                orientation="NWU",
-                declination=declination,
-                obstime=obstime,
-            )
-
-        # my_core = event[0, 'CorePosition'] + np.array([0, 0, site_height])
-        my_core = np.array([0, 0, site_height])
-
-        return (
-            ZhairesShower(
-                energy=float(shower_energy),
-                zenith=(180 - float(shower_zenith)),
-                azimuth=(180 - float(shower_azimuth)),
-                primary=primary,
-                frame=frame,
-                core=CartesianRepresentation(x=my_core[0], y=my_core[1], z=my_core[2]),
-                geomagnet=CartesianRepresentation(geomagnet),
-                maximum=CartesianRepresentation(
-                    x=branch_SimShower.xmax_pos_shc[0],
-                    y=branch_SimShower.xmax_pos_shc[1],
-                    z=branch_SimShower.xmax_pos_shc[2]
-                ),
-                fields=fields,
-            ),
-            True,
-        )
-
-    @staticmethod
-    def custom_from_felix(path: Path) -> ZhairesShower:
-        bool_traces = False
-        with h5py.File(path, "r") as file:
-            fields = FieldsCollection()
-
-            n_ant = file['highlevel']['obsplane_2900_gp_vB_vvB']['antenna_names'].shape[0]
-            for ant in range(n_ant):
-                x = file['highlevel']['obsplane_2900_gp_vB_vvB']["antenna_position"][ant, 0]
-                y = file['highlevel']['obsplane_2900_gp_vB_vvB']["antenna_position"][ant, 1]
-                z = file['highlevel']['obsplane_2900_gp_vB_vvB']["antenna_position"][ant, 2]
-                r = CartesianRepresentation(x=float(x), y=float(y), z=float(z))  # RK
-                
-                t = None
-                E = None
-                fields[ant] = CollectionEntry(electric=ElectricField(t=t, E=E, r=r))
-
-            return ZhairesShower(
-                energy=1.0e9,  # EeV --> GeV HARD CODED!!! For testing
-                fields=fields,
-            ), bool_traces
+        if self.printLevel > 0:
+            print("* EnergyRec instance starting values summary:")
+            print("--> bool_plot = ", self.bool_plot)
+            print("--> nu_low = ", self.nu_low)
+            print("--> nu_high = ", self.nu_high)
+            print("--> SNR_thres = ", self.SNR_thres)
+            print("--> thres_low = ", self.thres_low)
+            print("--> thres_high = ", self.thres_high)
+            print("--> f_thres = ", self.f_thres)
+            print("\n")
 
     def simulation_inspect(self):
         """
@@ -961,201 +486,19 @@ class EnergyRec:
             A class instance.
 
         """
+        if self.raw_data is not None:
+            print("This is the raw input:")
+            print(self.raw_data)
+            print()
 
-        thetaCR = self.shower.thetaCR
-        phiCR = self.shower.phiCR
-        E = self.shower.energy
-        Core = self.shower.r_core
-        B = self.GRANDshower.geomagnet
+        if self.fluence_data is not None:
+            print("This is the rec input:")
+            print(self.fluence_data)
 
-        print("* Simulation summary:")
-        print("--> thetaCR = ", thetaCR)
-        print("--> phiCR = ", phiCR)
-        print("--> E = ", E)
-
-        print("--> Core position = ", Core)
-
-        print("--> Geomagnetic field = ", B)
-
-    def inspect_antenna(self, id):
-        """
-        Plots the traces for a given antenna.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-        id: int
-            The antenna id.
-
-        """
-
-        if id < len(self.antenna):
-            Ex = self.antenna[id].trace_x
-            Ey = self.antenna[id].trace_y
-            Ez = self.antenna[id].trace_z
-            EvB = self.antenna[id].trace_evB
-            EvvB = self.antenna[id].trace_evvB
-            Ev = self.antenna[id].trace_ev
-            time = self.antenna[id].t
-
-        global_peak = np.max(np.abs([Ex, Ey, Ez]))
-        peak_index = np.where(np.abs([Ex, Ey, Ez]) == global_peak)[0][0]
-        peak_time = time[peak_index]
-
-        if self.bool_plot:
-            fig = plt.figure(figsize=(15, 3))
-            fig.suptitle("Traces", fontsize=16, y=1)
-            plt.subplot(131)
-            plt.plot(time, Ex, "r")
-            plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(132)
-            plt.plot(time, Ey, "b")
-            plt.xlabel("time in ns")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(133)
-            plt.plot(time, Ez, "k")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            fig = plt.figure(figsize=(15, 3))
-            fig.suptitle("Traces in shower plane", fontsize=16, y=1)
-            plt.subplot(131)
-            plt.plot(time, EvB, "r")
-            plt.ylabel("signal in V/m")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(132)
-            plt.plot(time, EvB, "b")
-            plt.xlabel("time in ns")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.subplot(133)
-            plt.plot(time, Ev, "k")
-            ax = plt.gca()
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-
-            plt.show()
-
-    def process_antenna(self, id):
-        """
-        Process a given antenna for inspection.
-
-        For a given initialized antenna, performs offset and cut, fft, trace recover, hilbert envelope and computes the fluence.
-        Calls EnergyRec.Antenna.compute_fluence;
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-
-        """
-
-        if id < len(self.antenna):
-            time = self.antenna[id].time
-
-            EvB = self.antenna[id].trace_evB
-            EvvB = self.antenna[id].trace_evvB
-            Ev = self.antenna[id].trace_ev
-            traces = np.c_[time, EvB, EvvB, Ev]
-        else:
-            message = "ERROR: id = " + str(id) + " is out of the antenna array bounds!"
-            raise ValueError(message)
-
-        fluence_evB, SNR = Antenna.compute_fluence(time, EvB)
-        fluence_evvB, SNR = Antenna.compute_fluence(time, EvvB)
-        fluence_ev, SNR = Antenna.compute_fluence(time, Ev)
-        fluence = np.sqrt(fluence_evB * fluence_evB
-                          + fluence_evvB * fluence_evvB
-                          + fluence_ev * fluence_ev)
-
-        r_plane = self.antenna[id].r_proj[0:2]
-        fluence_geo, fluence_ce = Antenna.compute_f_geo_ce(fluence_evB, fluence_evvB , r_plane)
-
-
-        self.antenna[id].fluence = fluence
-        self.antenna[id].fluence_evB = fluence_evB
-        self.antenna[id].fluence_evvB = fluence_evvB
-        self.antenna[id].fluence_geo = fluence_geo
-        self.antenna[id].fluence_ce = fluence_ce
-
-    def Eval_fluences(self):
-        """
-        Evaluates the geomagnetic and charge excess fluences for a set os antennas.
-
-        It has a lower threshold for the fluence f_thres.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-
-        Notes
-        -----
-        Fills self.antenna.fluence, self.antenna.fluence_evB, self.antenna.fluence_evvB, self.antenna.fluence geo and self.antenna.fluence_ce for all antennas.
-
-        """
-        n_ant = len(self.antenna)
-
-        step = round(n_ant / 10)
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        if self.simulation_type == "custom":
-            RunInfo = Table.read(self.simulation, path="RunInfo")
-            EventName = RunInfo["EventName"][0]
-            AntennaFluenceInfo = Table.read(
-                self.simulation, EventName + "/AntennaFluenceInfo"
-            )
-            for ant in AntennaFluenceInfo:
-                idx = ant["ID"]
-                self.antenna[idx].fluence = ant["Fluence_efield"]
-
-                fluence_site = CartesianRepresentation(
-                    ant["Fluencex_efield"],
-                    ant["Fluencey_efield"],
-                    ant["Fluencez_efield"]
-                )
-                fluence_shower = np.array([
-                    np.dot(self.shower.projection_mat, f_site) for f_site in fluence_site
-                    ])
-
-                self.antenna[idx].fluence_geo = -1
-                self.antenna[idx].fluence_ce = -1
-                self.antenna[idx].fluence_evB = np.abs(fluence_shower[0])
-                self.antenna[idx].fluence_evvB = np.abs(fluence_shower[1])
-                self.antenna[idx].fluence = np.linalg.norm(fluence_shower)
-
-        if self.printLevel > 0:
-            print("* Evaluating the fluences:")
-            print("--> 0 % complete;")
-        for counter, ant in enumerate(antenna_list):
-            # Read traces or voltages
-            if step > 0 and (counter + 1) % step == 0 and self.printLevel > 0:
-                print("-->", int((counter + 1) / (10 * step) * 100), "% complete;")
-
-            if self.simulation_type != "custom":
-                self.process_antenna(ant.ID)
-            if ant.fluence > 0:
-                ant.sigma_f = np.sqrt(ant.fluence)
-
-        if self.printLevel > 0:
-            print("\n")
 
     def Eval_par_fluences(self, par):
         """
         Evaluates the fluence par for a give set of parameters.
-        Uses bool_EarlyLate to toggle early-late correction.
 
         Parameters
         ----------
@@ -1170,105 +513,32 @@ class EnergyRec:
             Parametrized fluence array.
         """
 
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
 
         fluence_par = {}
-        eB = self.shower.eB
-        alpha = np.arccos(np.dot(self.shower.ev, eB))
+        alpha = np.arccos(np.dot(self.raw_data.ev, self.raw_data.eB))
         d_Xmax = np.linalg.norm(
-            (self.shower.r_core - self.shower.r_x_max)
+            (self.raw_data.er_core - self.raw_data.r_x_max)
         )
-        rho_Xmax = SymFit.rho(d_Xmax, -self.shower.ev)
+        rho_Xmax = SymFit.rho(d_Xmax, - self.raw_data.ev)
 
-        for ant in antenna_list:
-            if self.bool_EarlyLate and ant.wEarlyLate is not None:
-                weight = ant.wEarlyLate
-            else:
-                weight = 1
-
-            r_plane = ant.r_proj[0:2] * weight
-            fluence = ant.fluence_evB / (weight ** 2)
-            phi = np.arccos(np.dot(r_plane, np.array([1, 0])) / np.linalg.norm(r_plane))
-            dist = np.linalg.norm((ant.r_proj - self.shower.r_Core_proj)[0:2]) * weight
-            fluence_par[ant.ID] = SymFit.f_par_geo(
-                fluence, phi, alpha, dist, d_Xmax, par, rho_Xmax
+        rr_core = self.fluence_data.r_core_shower
+        for i in range(len(self.fluence_data.r_shower)):
+            rr = self.fluence_data.r_shower[i]
+            r_plane = rr[0:2]
+            phi = np.arccos(
+                  np.dot(r_plane, np.array([1, 0])) / np.linalg.norm(r_plane)
+                )
+            dist = np.linalg.norm(
+                (rr - rr_core)[0:2]
+                )
+            fluence_par[i] = SymFit.f_par_geo(
+                self.fluence_data.fluence[i], phi, alpha, dist, d_Xmax, par, rho_Xmax
             )
 
         return fluence_par
 
-    @staticmethod
-    def eval_mean_fluences(antpos_fluences):
-        r"""
-        Evaluates the fluence mean and sigma (stdev) for a given set of simulated fluences
-
-        Parameters
-        ----------
-        antpos_fluences: list
-            An input with columns: id, x_proj, y_proj, fluence
-
-        Returns
-        -------
-        x: array
-            Antenna x positions in the shower plane.
-        y: array
-            Antenna y positions in the shower plane.
-        mean fluence: array
-            The mean fluence fluence in a given (x,y) position.
-        sigma_f: array
-            The unncertainty in the fluence (standard deviation).
-        """
-
-        ID = antpos_fluences[:, 0]
-        x_proj = antpos_fluences[:, 1]
-        y_proj = antpos_fluences[:, 2]
-        fluence_arr = antpos_fluences[:, 3]
-
-        fluence_mean = {}
-        fluence_mean2 = {}
-        counter = {}
-        pos = {}
-        for i in range(len(fluence_arr)):
-            # label = str(x_proj[i]) + str(y_proj[i])
-            label = ID[i]
-
-            if label in counter:
-                counter[label] = counter[label] + 1
-            else:
-                counter[label] = 1
-
-            pos[label] = [x_proj[i], y_proj[i]]
-
-            if label in fluence_mean:
-                fluence_mean[label] += fluence_arr[i]
-                fluence_mean2[label] += fluence_arr[i] ** 2
-            else:
-                fluence_mean[label] = fluence_arr[i]
-                fluence_mean2[label] = fluence_arr[i] ** 2
-
-        f_mean = np.zeros(len(pos))
-        f_mean2 = np.zeros(len(pos))
-        r = np.zeros((len(pos), 2))
-
-        trim_counter = {}
-        for key, value in counter.items():
-            if value < 2:
-                pos.pop(key)
-
-        index = 0
-        for key, value in pos.items():
-            label = key
-            f_mean[index] = fluence_mean[label] / counter[label]
-            f_mean2[index] = fluence_mean2[label] / counter[label]
-            r[index] = value
-            index += 1
-
-        return r[:, 0], r[:, 1], f_mean, np.sqrt(f_mean2 - f_mean ** 2)
-
+    
     def plot_antpos(self):
         """
         Plots the fluence and antenna positions in the site plane.
@@ -1280,25 +550,16 @@ class EnergyRec:
 
         """
 
-        n_ant = len(self.antenna)
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        r_ant = np.zeros((n_ant, 3))
-        for idx, ant in enumerate(antenna_list):
-            r_ant[idx] = ant.r_ground
-
-        fluence_arr = np.array([ant.fluence for ant in antenna_list])
-        sel = np.where(fluence_arr > 0)[0]
+        sel = np.where(self.fluence_data["fluence"] > 0)[0]
 
         fig = plt.figure(figsize=(10, 7))
         ax = plt.gca()
 
         plt.scatter(
-            r_ant[:, 0][sel], r_ant[:, 1][sel], c=fluence_arr[sel], cmap="viridis"
+            self.fluence_data["r_shower"][:, 0][sel],
+            self.fluence_data["r_shower"][:, 1][sel],
+            c=fluence_arr[sel],
+            cmap="viridis"
         )
 
         plt.xlabel("x (in m)")
@@ -1306,149 +567,8 @@ class EnergyRec:
         plt.colorbar().ax.set_ylabel(r"Energy fluence (eV/m$^2$)")
         plt.show()
 
-    def signal_output(self):
-        """
-        Prints the antena positions (in the shower plane) and fluences to a file.
-
-        The filename has the structure ``fluence_ShowerPlane_THETACR.out`` and is open with append option.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-        """
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        fluence_arr = np.array([ant.fluence for ant in antenna_list])
-        sel = np.where(fluence_arr > 0)[0]
-
-        signal = np.c_[self.shower.r_proj[sel], fluence_arr[sel]]
-
-        fluence_file = open(
-            "fluence_ShowerPlane_" + str(round(self.shower.thetaCR)) + ".out", "a"
-        )
-        for entry in signal:
-            print(str(entry)[1:-1], file=fluence_file)
-        fluence_file.close()
-
-    def shower_projection(self):
-        """
-        Projects the antenna positions and traces into the shower plane.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-
-        Notes
-        -----
-        Fills self.shower.core_proj, self.antenna.r_proj for all antennas and self.shower.traces_proj.
-
-        """
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        for ant in antenna_list:
-            r_ant = ant.r_ground - self.shower.r_core.T[0]
-            ant.r_proj = np.dot(self.shower.projection_mat, r_ant)
-
-            if self.simulation_type != "custom":
-                E = zip(ant.trace_x, ant.trace_y, ant.trace_z)
-                traces_proj = np.array([np.dot(self.shower.projection_mat, E_entry) for E_entry in E])
-                ant.trace_evB = traces_proj[:,0]
-                ant.trace_evvB = traces_proj[:,1]
-                ant.trace_ev = traces_proj[:,2]
-            else:
-                ant.trace_evB = None
-                ant.trace_evvB = None
-                ant.trace_ev = None
-
-        core = self.shower.r_core.T[0] - self.shower.r_core.T[0]
-        r_Core_proj = np.dot(self.shower.projection_mat, core)
-
-        self.shower.r_Core_proj = r_Core_proj
-
-    def model_fit(self, filename="", Cs=None):
-        """
-        Performs the fit using a given model (set in the EnergyRec instance).
-
-        **If** ``filename = ""`` (default) fits a given simulation.
-        **else** it reads the file with antenna positions (in shower plane) and fluences,
-        and performs the fit.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-        filename:
-            File with antenna positions and fluences for a given shower inclination (default = "");
-        Cs: array
-            The LDF parameters to be used in the fit if ``filename`` != ""
-
-        Notes
-        -----
-        Fills self.bestfit.
-
-        """
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        if self.printLevel or filename != "":
-            print("* Model fit:")
-        if filename == "":
-            fluence_arr = np.array([ant.fluence for ant in antenna_list])
-            if all(f is None for f in fluence_arr):
-                raise ValueError(
-                    "--> fluence_arr == None. instance.Eval_fluences() has to be run!"
-                )
-
-            if self.bool_EarlyLate and self.printLevel:
-                print("--> Early-late correction will be applied!")
-
-        else:
-            if not Path(filename).is_file():
-                message = "ERROR: file " + filename + " not found!"
-                raise ValueError(message)
-
-            datafile = open(filename, "r")
-            antpos_fluences = np.loadtxt(datafile)
-            datafile.close()
-            # x_proj, y_proj, fluence_arr, sigma_arr = self.eval_mean_fluences(antpos_fluences)
-
-            # self.antenna = [self.Antenna() for ant in range(len(fluence_arr))]
-            self.antenna = [Antenna(ant) for ant in range(len(antpos_fluences))]
-
-            for ant in range(len(antpos_fluences)):
-                # self.antenna[ant].fluence = fluence_arr[ant]
-                # self.antenna[ant].r_proj = [x_proj[ant],y_proj[ant],0]
-                # self.antenna[ant].sigma_f = sigma_arr[ant]
-                self.antenna[ant].ID = antpos_fluences[ant, 0]
-                self.antenna[ant].r_proj = [
-                    antpos_fluences[ant, 1],
-                    antpos_fluences[ant, 2],
-                    0,
-                ]
-                self.antenna[ant].fluence = antpos_fluences[ant, 3]
-                self.antenna[ant].sigma_f = antpos_fluences[ant, 4]
-
-            self.shower.r_Core_proj = np.array([0, 0, 0])
-
-        AERA.aeraFit(self, filename, Cs)
-        if self.printLevel or filename != "":
-            print("--> Done!")
-            print("\n")
-
     @staticmethod
-    def early_late(r_proj, r_core_proj, d_xmax):
+    def early_late(r_shower, r_core_shower, d_xmax):
         """
         Evaluates the early-late correction factor.
 
@@ -1465,482 +585,13 @@ class EnergyRec:
 
         R_0 = d_xmax
         
-        r_ant = r_proj - r_core_proj
+        r_ant = r_shower - r_core_shower
         R = (
             R_0 + r_ant[2]
         )  ## R_ant[2] is the distance from the core projected into ev
         wEarlyLate = R_0 / R
 
         return wEarlyLate
-
-
-class AERA:
-    """
-    A class with aera specific methods.
-    """
-
-    @staticmethod
-    def aeraLDF(par_fit, Cs, evB, x, y):
-        r"""
-        The AERA 2d LDF.
-
-        .. math::
-            f(\vec{r})=A\left[\exp\left(\frac{-(\vec{r}+C_{1}\vec{e}_{\vec{v}\times\vec{B}}-\vec{r}_{{\rm core}})^{2}}{\sigma^{2}}\right) -C_{0}\exp\left(\frac{-(\vec{r}+C_{2}\vec{e}_{\vec{v}\times\vec{B}}-\vec{r}_{{\rm core}})^{2}}{\left(C_{3}e^{C_{4}\sigma}\right)^{2}}\right)\right].
-
-        Parameters
-        ----------
-        par_fit: array
-            The parameters to be obtimized.
-        Cs: array
-            The parameters to be fixed.
-        evB:
-            The versor in the direction of :math:`\vec{v} \times \vec{B}`
-        x: array
-            The position of the antenna along the x axis :math:`(\vec{v} \times \vec{B})`.
-        y: array
-            The position of the antenna along the y axis :math:`(\vec{v}\times\vec{v} \times \vec{B}\)`.
-
-        Returns
-        -------
-        :math:`f`: double
-            The function value.
-
-        """
-
-        A = par_fit[0]
-        sigma = par_fit[1]
-        rcore = Shower.r_Core_proj[0:2]
-
-        if Cs is None:
-            C0 = par_fit[2]
-            C1 = par_fit[3]
-            C2 = par_fit[4]
-            C3 = par_fit[5]
-            C4 = par_fit[6]
-        elif len(par_fit) == 6:
-            C0 = Cs[0]
-            C1 = par_fit[2]
-            C2 = par_fit[3]
-            C3 = par_fit[4]
-            C4 = par_fit[5]
-        else:
-            C0 = Cs[0]
-            C1 = Cs[1]
-            C2 = Cs[2]
-            C3 = Cs[3]
-            C4 = Cs[4]
-
-        r = np.array([x, y])
-        numA = r - C1 * evB - rcore
-        partA = np.exp(-(np.linalg.norm(numA) ** 2) / sigma ** 2)
-
-        numB = r - C2 * evB - rcore
-        partB = np.exp(-(np.linalg.norm(numB) ** 2) / (C3 * np.exp(C4 * sigma)) ** 2)
-
-        result = A * (partA - C0 * partB)
-        if A < 0 or sigma < 0 or C0 < 0 or C3 < 0 or C4 < 0:
-            result = np.inf
-        if result < 0:
-            result = 0.0
-        return result
-
-    @staticmethod
-    def aeraChi2(par_fit, Cs, self):
-        """
-        The chi2 for the AERA fit.
-
-        The model for the uncertainty in the fluence is :math:`\sqrt{fluence}`.
-        self.bool_EarlyLate toggles the early-late correction;
-
-        Parameters
-        ----------
-        par: array
-            The parameters to be obtimized.
-        Cs: array
-            The parameters to be fixed.
-
-
-        Returns
-        -------
-        Chi2: double
-            The :math:`\chi^2` value.
-
-
-        """
-        Chi2 = 0.0
-        i = 0
-
-        # if len(par_fit)==7:
-        #     sigma = par_fit[1]
-        #     C0 = par_fit[2]
-        #     C3 = par_fit[5]
-        #     C4 = par_fit[6]
-
-        #     if(sigma**2 - C0*(C3**2)*np.exp(2*C4*sigma) < 0):
-        #         return np.inf
-        # elif len(par_fit)==6:
-        #     sigma = par_fit[1]
-        #     C0 = Cs[0]
-        #     C3 = par_fit[4]
-        #     C4 = par_fit[5]
-
-        #     if(sigma**2 - C0*(C3**2)*np.exp(2*C4*sigma) < 0):
-        #         return np.inf
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        Shower.r_Core_proj = (
-            self.shower.r_Core_proj
-        )  ## Using class definition as a global variable!!
-
-        # check_dist_ldf = np.linspace(0,2*sigma,100)
-        # check_ldf = []
-        # for check_dist in check_dist_ldf:
-        #     check_ldf.append(AERA.aeraLDF(par_fit,Cs, np.array([1,0]), check_dist, 0))
-
-        # if np.sum(check_ldf[0:30]) > np.sum(check_ldf[30:None]): # try to prevent maximum at (0,0)
-        #     return np.inf
-
-        max_ldf = -np.inf
-        for ant in antenna_list:
-            if ant.fluence <= self.f_thres:
-                continue
-            elif ant.sigma_f == 0:
-                continue
-
-            if self.bool_EarlyLate and ant.wEarlyLate is not None:
-                weight = ant.wEarlyLate
-            else:
-                weight = 1
-
-            x = ant.r_proj[0] * weight
-            y = ant.r_proj[1] * weight
-            f = ant.fluence / (weight ** 2)
-            sigma = ant.sigma_f / (weight ** 2)
-            ldf_val = AERA.aeraLDF(par_fit, Cs, np.array([1, 0]), x, y)
-            if ldf_val > max_ldf:
-                max_ldf = ldf_val
-                max_r_proj = ant.r_proj
-            Chi2 = Chi2 + ((ldf_val - f) / sigma) ** 2
-            i = i + 1
-
-        return Chi2
-
-    @staticmethod
-    def aeraFit(self, filename, Cs):
-        """
-        Performs the fit using the AERA 2d LDF.
-
-        **If** ``filename = ""`` (default) fits a given simulation.
-        **else** it reads the file (antenna position (in shower plane) and fluences)
-        and performs the fit. It is used for the training stage.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-        filename: str
-            File with antenna positions and fluences for a given shower inclination.
-        Cs: array
-            The parameters to be fixed.
-
-        Notes
-        -----
-        Fills self.bestfit.
-
-        """
-        if filename == "":
-            bestfit_out = "bestfit.out"
-
-        else:
-            bestfit_out = "bestfit_All.out"
-
-        my_evB = np.array([1, 0])
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        # amplitude guess
-        fluence_arr = np.array([ant.fluence for ant in antenna_list])
-        sel = np.where(fluence_arr > np.mean(fluence_arr) + np.std(fluence_arr))[0]
-        init_A = 2 * np.mean(fluence_arr[sel])
-
-        # core position guess
-        # core_index = np.where(fluence_arr==np.max(fluence_arr))[0][0]
-        # init_xCore =  0 #antpos_proj[core_index,0]
-        # init_yCore =  0 #antpos_proj[core_index,1]
-
-        # sigma guess
-        distances = np.array([np.linalg.norm(ant.r_proj[0:2]) for ant in antenna_list])
-
-        init_sigma = np.mean(distances[sel])
-
-        # Cs_aera = [0.5,-10,20,16,0.01]
-        Cs_aera = [0.9, 0, 0, 6, 0.003]
-        if Cs is None:
-            par_fit = [
-                init_A,
-                init_sigma,
-                Cs_aera[0],
-                Cs_aera[1],
-                Cs_aera[2],
-                Cs_aera[3],
-                Cs_aera[4],
-            ]
-            res = sp.optimize.minimize(
-                AERA.aeraChi2, par_fit, args=(Cs, self), method="Nelder-Mead"
-            )
-            resx = res.x
-        elif len(Cs) == 1:
-            par_fit = [
-                init_A,
-                init_sigma,
-                Cs_aera[1],
-                Cs_aera[2],
-                Cs_aera[3],
-                Cs_aera[4],
-            ]
-            res = sp.optimize.minimize(
-                AERA.aeraChi2, par_fit, args=(Cs, self), method="Nelder-Mead"
-            )
-            resx = np.insert(res.x, 2, Cs[0])
-            Cs = None
-        else:
-            par_fit = [init_A, init_sigma]
-            res = sp.optimize.minimize(
-                AERA.aeraChi2, par_fit, args=(Cs, self), method="Nelder-Mead"
-            )
-            resx = np.append(res.x, Cs)
-            Cs_aera = Cs
-
-        chi2min = AERA.aeraChi2(resx, Cs, self)
-        ndof = fluence_arr[fluence_arr > self.f_thres].size - res.x.size
-
-        if self.printLevel > 0:
-            print("** AERA fit:")
-            print("---> ", "{:6} {:>10} {:>10}".format("Par", "Initial", "Bestfit"))
-            print("---> ", "----------------------------")
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format("A", round(init_A, 3), round(resx[0], 4)),
-            )
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format(
-                    "sigma", round(init_sigma, 2), round(resx[1], 4)
-                ),
-            )
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format(
-                    "C0", round(Cs_aera[0], 2), round(resx[2], 4)
-                ),
-            )
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format(
-                    "C1", round(Cs_aera[1], 2), round(resx[3], 4)
-                ),
-            )
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format(
-                    "C2", round(Cs_aera[2], 2), round(resx[4], 4)
-                ),
-            )
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format(
-                    "C3", round(Cs_aera[3], 2), round(resx[5], 4)
-                ),
-            )
-            print(
-                "---> ",
-                "{:6} {:10} {:10}".format(
-                    "C4", round(Cs_aera[4], 2), round(resx[6], 4)
-                ),
-            )
-            print("---> ", "----------------------------")
-            print(
-                "---> ", "Chi2min/n.d.o.f = ", str(round(chi2min, 2)), " / ", int(ndof)
-            )
-
-        bestfit = open(bestfit_out, "a")
-
-        if filename == "":
-            A = resx[0]
-            sigma = resx[1]
-            sin2Alpha = 1 - np.dot(self.shower.ev, self.shower.eB) ** 2.0
-            Cs = np.array([resx[2], resx[3], resx[4], resx[5], resx[6]])
-            Sradio = (A * np.pi / sin2Alpha) * (
-                sigma ** 2.0 - Cs[0] * (Cs[3] ** 2.0) * np.exp(2 * Cs[4] * sigma)
-            )
-            print(*resx, self.shower.energy, Sradio, file=bestfit)
-
-        else:
-            print(*resx, file=bestfit)
-
-        bestfit.close()
-
-        ## \cond
-        self.bestfit = resx
-        ## \endcond
-
-    def aeraPlot(self):
-        """
-        Plots the result of the aera Fit.
-
-        It plots the 2D LDF with the stations used in the fit.
-        It also plots a 1D LDF and a residual plot.
-
-        """
-
-        my_evB = np.array([1, 0])
-
-        try:
-            antenna_list = self.antenna.values()
-        except:
-            antenna_list = self.antenna
-
-        A = self.bestfit[0]
-        sigma = self.bestfit[1]
-        rcore = self.shower.r_Core_proj[0:2]
-        # sin2Alpha = (1-np.dot(self.shower.ev,self.shower.eB)**2.)
-
-        Cs = np.array(
-            [
-                self.bestfit[2],
-                self.bestfit[3],
-                self.bestfit[4],
-                self.bestfit[5],
-                self.bestfit[6],
-            ]
-        )
-        # Sradio = (A*np.pi/sin2Alpha)*(sigma**2. - Cs[0]*(Cs[3]**2.)*np.exp(2*Cs[4]*sigma))
-        # print('S_radio=',round(Sradio,2))
-
-        par = [A, sigma, Cs[0], Cs[1], Cs[2], Cs[3], Cs[4]]
-
-        fluence_arr = np.array([ant.fluence for ant in antenna_list])
-        if self.bool_EarlyLate:
-            weight = np.array([ant.wEarlyLate for ant in antenna_list])
-            if all(w is None for w in weight):
-                weight = np.full(len(fluence_arr), 1)
-        else:
-            weight = np.full(len(fluence_arr), 1)
-        sel = np.where(fluence_arr > 0)[0]
-        weight = weight[sel]
-        fluence_arr = fluence_arr[sel] / (weight ** 2)
-
-        r_proj = np.array([ant.r_proj for ant in antenna_list])
-        x_proj = r_proj[:, 0][sel] * weight - rcore[0]
-        y_proj = r_proj[:, 1][sel] * weight - rcore[1]
-
-        delta_X = np.max(x_proj) - np.min(x_proj)
-        delta_Y = np.max(y_proj) - np.min(y_proj)
-        mean_X = np.min(x_proj) + delta_X / 2
-        mean_Y = np.min(y_proj) + delta_Y / 2
-
-        delta_XY = np.max([delta_X, delta_Y]) * 1.10
-
-        minXAxis = mean_X - delta_XY / 2
-        maxXAxis = mean_X + delta_XY / 2
-        minYAxis = mean_Y - delta_XY / 2
-        maxYAxis = mean_Y + delta_XY / 2
-
-        xx = np.arange(minXAxis, maxXAxis, delta_XY / 500)
-        yy = np.arange(minYAxis, maxYAxis, delta_XY / 500)
-        X, Y = np.meshgrid(xx, yy)  # grid of point
-
-        Z = np.zeros((yy.size, xx.size))
-
-        Shower.r_Core_proj = np.array([0, 0, 0])  # warning: global variable
-
-        for i in range(yy.size):
-            for j in range(xx.size):
-                Z[i, j] = AERA.aeraLDF(
-                    par, None, my_evB, X[i, j], Y[i, j]
-                )  # evaluation of the function on the grid
-
-        fig = plt.figure(figsize=[14, 5])
-        plt.subplot(121)
-        im = plt.imshow(
-            Z,
-            cmap="viridis",
-            origin="lower",
-            extent=[minXAxis, maxXAxis, minYAxis, maxYAxis],
-        )  # drawing the function
-
-        plt.scatter(
-            x_proj,
-            y_proj,
-            c=fluence_arr,
-            cmap="viridis",
-            s=100,
-            edgecolors=(1, 1, 1, 0.2),
-        )
-        plt.clim(
-            np.min([np.min(Z), np.min(fluence_arr)]),
-            np.max([np.max(Z), np.max(fluence_arr)]),
-        )
-        plt.colorbar().ax.set_ylabel(r"energy fluence in eV/m$^2$")
-
-        plt.xlabel(r"distante along $\vec{v}\times\vec{B}$ (in m)")
-        plt.ylabel(r"distante along $\vec{v}\times\vec{v}\times\vec{B}$ (in m)")
-
-        plt.plot(0, 0, "w*")
-
-        plt.xlim(minXAxis, maxXAxis)
-        plt.ylim(minYAxis, maxYAxis)
-
-        plt.subplot(122)
-        plt.scatter(
-            x_proj,
-            y_proj,
-            c=fluence_arr,
-            cmap="viridis",
-            s=100,
-            edgecolors=(1, 1, 1, 0.2),
-        )
-        plt.xlabel(r"distante along $\vec{v}\times\vec{B}$ (in m)")
-        plt.ylabel(r"distante along $\vec{v}\times\vec{v}\times\vec{B}$ (in m)")
-        plt.colorbar().ax.set_ylabel(r"energy fluence in eV/m$^2$")
-        plt.xlim(minXAxis, maxXAxis)
-        plt.ylim(minYAxis, maxYAxis)
-
-        # 1D LDF
-        temp_x = x_proj
-        temp_y = y_proj
-
-        temp_dist = np.sqrt(temp_x * temp_x + temp_y * temp_y)
-
-        fig_ldf = plt.figure(figsize=[14, 5])
-        plt.subplot(121)
-        yerr = np.array([ant.sigma_f for ant in antenna_list])[sel]
-        plt.errorbar(temp_dist, fluence_arr, yerr=yerr, fmt=".")
-        plt.xlabel("Distance from core in m")
-        plt.ylabel(r"Fluence in eV/m$^2$")
-        plt.gca().set_yscale("log")
-
-        residual = np.zeros(fluence_arr.size)
-
-        for i in range(fluence_arr.size):
-            residual[i] = (
-                fluence_arr[i] - AERA.aeraLDF(par, None, my_evB, x_proj[i], y_proj[i])
-            ) / np.sqrt(fluence_arr[i])
-
-        plt.subplot(122)
-        plt.errorbar(temp_dist, residual, yerr=1, fmt=".")
-        plt.xlabel("Distance from core in m")
-        plt.ylabel(r"($f$ - fit)/$\sigma_f$")
-        # plt.xlim(0,500)
-        plt.ylim(-2, 2)
-        plt.grid()
 
 
 class SymFit:
@@ -2181,6 +832,21 @@ class SymFit:
         return LDF
 
     @staticmethod
+    def ressonance(pars, x):
+        A = pars[0]
+        omega_0 = pars[1]
+        gamma = pars[2]
+        omega_star = np.sqrt(omega_0**2 - 2*gamma**2)
+        n = 2
+        a = 1
+        sigma = pars[3]
+        d0 = pars[4]
+        
+        temp = ((a*x) ** n - omega_0 * omega_0)
+        den = (4 * gamma * gamma * (a*x) ** n + temp ** 2)
+        return A*np.exp(-((x-d0)/sigma)**2)/den
+
+    @staticmethod
     def LDF_chi2(par, r, fluence_par):
         """
         The LDF chi2.
@@ -2310,7 +976,8 @@ class SymFit:
         E_rad = (
             2
             * np.pi
-            * sp.integrate.quad(lambda r: r * SymFit.SymLDF_2022(ldf_par, r), 0, 2000)[0]
+            #* sp.integrate.quad(lambda r: r * SymFit.SymLDF_2022(ldf_par, r), 0, 2000)[0]
+            * sp.integrate.quad(lambda r: r * SymFit.ressonance(ldf_par, r), 0, 2000)[0]
         )
         sin2alpha = np.sin(alpha) ** 2.0
 
@@ -2422,7 +1089,6 @@ class SymFit:
 
 print("* EnergyRec default values summary:")
 print("--> bool_plot = ", EnergyRec.bool_plot)
-print("--> bool_EarlyLate = ", EnergyRec.bool_EarlyLate)
 print("--> nu_low = ", EnergyRec.nu_low)
 print("--> nu_high = ", EnergyRec.nu_high)
 print("--> SNR_thres = ", EnergyRec.SNR_thres)
