@@ -609,6 +609,9 @@ class SymFit:
     ## The initial guess for the ldf par fit.
     g_ldf_par = None
 
+    ## The initial guess for the joint fit.
+    g_joint_par = None
+
     @staticmethod
     def a_ratio(r, d_Xmax, par, rho_max):
         """
@@ -670,7 +673,7 @@ class SymFit:
         return f_vB / ((1 + cos_sin_ratio * sqrta) ** 2)
 
     @staticmethod
-    def rho(r, e_vec):
+    def rho(r, e_vec, site_height=0):
         """
         Evaluates the air density at a given position.
 
@@ -691,10 +694,6 @@ class SymFit:
 
         H = 10.4  # in km
         rho_0 = 1.225  # in kg/m^3
-        site_height = (
-            EnergyRec.site_height / 1000
-        )  # in km (Hard Coded Using Class Definition!!!)
-
         return rho_0 * np.exp(-(site_height + height) / H)
 
     @staticmethod
@@ -881,6 +880,8 @@ class SymFit:
         Chi2 = 0
         sigma = 0.03 * f_par + 1.e-4 * np.max(f_par)
         for i in range(f_par.size):
+            #if(r[sel][i] > 5 * par[1]): # Not too far from Cerennkov radius
+            #    continue
             LDF = SymFit.SymLDF_2022(par, r[sel][i])
             # if a_arr[i] < 1:
             Chi2 = Chi2 + ((f_par[i] - LDF) / sigma[i]) ** 2
@@ -976,8 +977,8 @@ class SymFit:
         E_rad = (
             2
             * np.pi
-            #* sp.integrate.quad(lambda r: r * SymFit.SymLDF_2022(ldf_par, r), 0, 2000)[0]
-            * sp.integrate.quad(lambda r: r * SymFit.ressonance(ldf_par, r), 0, 2000)[0]
+            * sp.integrate.quad(lambda r: r * SymFit.SymLDF_2022(ldf_par, r), 0, 2000)[0]
+            #* sp.integrate.quad(lambda r: r * SymFit.ressonance(ldf_par, r), 0, 2000)[0]
         )
         sin2alpha = np.sin(alpha) ** 2.0
 
@@ -1045,7 +1046,7 @@ class SymFit:
             )
             S_mod = SymFit.Sradio_mod(par[2:4], E_arr[i])
             #sigma = np.sqrt(S_geo)
-            sigma = 1
+            sigma = S_geo
             Chi2 = Chi2 + ((S_geo - S_mod) / sigma) ** 2
 
         return Chi2
@@ -1071,12 +1072,14 @@ class SymFit:
         bestfit: array
             The bestfit array.
         """
-
-        p0 = 0.394
-        p1 = -2.370  # m^3/kg
-        S_19 = 1.408  # in GeV
-        gamma = 1.995
-        par = [p0, p1, S_19, gamma]
+        if SymFit.g_ldf_par is None:
+            p0 = 0.394
+            p1 = -2.370  # m^3/kg
+            S_19 = 1.408  # in GeV
+            gamma = 1.995
+            par = [p0, p1, S_19, gamma]
+        else:
+            par = SymFit.g_ldf_par
 
         res = sp.optimize.minimize(
             SymFit.Chi2_joint_S,

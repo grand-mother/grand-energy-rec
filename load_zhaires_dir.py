@@ -100,18 +100,19 @@ def load(simulation_dir):
     Ex = {}
     Ey = {}
     Ez = {}
-    for field_path in path2.glob("a*.trace"):
+    for ant in range(len(positions)):
+        tracef = Path(simulation_dir + "/" + path.name + '/a' + str(ant) + '.trace')
         # Example field_path => ..../grand/tests/simulation/data/zhaires/a1.trace
         #                    =>    time [ns]      Ex [uVm]    Ey [uVm]   Ez [uVm]
         #                    => -1.1463000E+04  -5.723E-05  -1.946E-04  4.324E-04
-        antenna = int(field_path.name[1:].split(".", 1)[0])
+        # antenna = int(field_path.name[1:].split(".", 1)[0])
         # logger.debug(f"Loading trace for antenna {antenna}")
-        data = np.loadtxt(field_path)
+        data = np.loadtxt(tracef)
         #t[antenna] = data[:, 0] * 1.0e-9  # ns --> s
-        t[antenna] = data[:, 0]  # ns
-        Ex[antenna] = data[:, 1] * 1.0e-6 # uVm --> V/m
-        Ey[antenna] = data[:, 2] * 1.0e-6 # uVm --> V/m
-        Ez[antenna] = data[:, 3] * 1.0e-6 # uVm --> V/m
+        t[ant] = data[:, 0]  # ns
+        Ex[ant] = data[:, 1] * 1.0e-6 # uVm --> V/m
+        Ey[ant] = data[:, 2] * 1.0e-6 # uVm --> V/m
+        Ez[ant] = data[:, 3] * 1.0e-6 # uVm --> V/m
 
 
     ev =  -(np.array(inp['maximum']) - np.array(inp['core']))
