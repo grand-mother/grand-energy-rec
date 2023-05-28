@@ -13,7 +13,11 @@ def load(simulation_dir):
     else:
         def parse_quantity(string: str):
             words = string.split()
-            return float(words[0])
+            if(words[1] == "PeV"):
+                weight = 1.e-3
+            else:
+                weight = 1
+            return float(words[0])*weight
         
         def parse_geomagnet_intensity(string: str):  # -> u.Quantity:
             return float(string.split()[0]) * 1e-3  # uT --> nT
