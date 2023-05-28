@@ -987,7 +987,7 @@ class SymFit:
         # rho_mean = 0.648
         # rho_mean = 0.327
         rho_mean = SymFit.g_rho_mean
-        den = sin2alpha * (1 - p0 + p0 * np.exp(p1 * (rho_Xmax - rho_mean)))
+        den = sin2alpha * (1 - p0 + p0 * np.exp(p1 * (rho_Xmax - rho_mean)))**2
 
         return E_rad * 1.0e-9 / den  # in GeV
 
