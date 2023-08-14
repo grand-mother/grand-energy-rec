@@ -7,3 +7,4 @@ fluences_all.out
 __pycache__
 .ipynb_checkpoints
 doc/source/.vscode/settings.json
+doc/html
