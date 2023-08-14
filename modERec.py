@@ -1,26 +1,28 @@
 ##
-# @mainpage
-# PROTOTYPE Code for energy reconstruction \n
-# Ready to read simulations from CORSIKA/Coreas \n
-# This implementation is object oriented \n
-# Date: September 16, 2019 \n \n
+# @mainpage GRAND Energy Reconstruction Package
 #
-# A module to reconstruc the energy of events simulated using the Corsika/Coreas. \n\n
+# @section description_main Description
+# A module to reconstruct the energy of events simulated on the context of GRAND. \n\n
 #
-# The class EnergyRec is the main energy reconstruction class. \n \n
-# It has the following inner classes: \n
-# --> EnergyRec.Antenna which holds the antenna specific methods and variables.\n
-# --> EnergyRec.AERA with AERA specific methods.\n
-# --> EnergyRec.Shower that stores shower specific variables.\n
-# --> EnergyRec.SymFit implements the symmetric signal fit.\n \n
-# *** Updates on November 13, 2019:
-#     Eval_geo_ce_fluences implemented; \n
-#     EnergyRec.SymFit implemented.\n \n \n
-# *** Updates on April 05, 2020:
-#     grand software fully integrated; \n
+# @section notes_main Notes
+#
 # Written by Bruno L. Lago
 
+##
+# @file modERec.py
+#
+# @brief Main file for the reconstruction tools packages.
+#
+# @section notes_doxygen_example Notes
+# - Comments are Doxygen compatible.
+#
+# @section todo_doxygen_example TODO
+# - None.
+#
+# @section author_doxygen_example Author(s)
+# - Created by Bruno L. Lago.
 
+# Imports
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
@@ -28,34 +30,22 @@ from scipy.fftpack import fft, ifft
 from scipy.signal import hilbert
 
 
+# Classes
 class RawData:
-    """
+    """!
     A class for the raw input attributes.
 
-    Attributes
-    ----------
-    ant_ID:
-        The antenna ID
-    r_ground:
-        The antenna positions
-    r_core:
-        Shower core coordinates
-    traces_time:
-        The trace times
-    traces_x:
-        The traces in x direction
-    traces_y:
-        The traces in y direction
-    traces_z:
-        The traces in z direction
-    ev:
-        Unitary vector in the velocity direction
-    eB:
-        Unitary vector on the magnetic field direction
-    r_x_max:
-        X max position w.r.t. the shower core
-    energy:
-        Monte Carlo energy
+    @param ant_ID      The antenna ID.
+    @param r_ground    The antenna positions.
+    @param r_core      Shower core coordinates.
+    @param traces_time The trace times.
+    @param traces_x    The traces in x direction.
+    @param traces_y    The traces in y direction.
+    @param traces_z    The traces in z direction.
+    @param ev          Unitary vector in the velocity direction.
+    @param eB          Unitary vector on the magnetic field direction.
+    @param r_x_max     X max position w.r.t. the shower core.
+    @param energy      Monte Carlo energy.
     """
 
     ant_ID = None
@@ -71,6 +61,8 @@ class RawData:
     energy = None
 
     def __init__(self, dict):
+        """! RawData init function."""
+
         self.ant_ID = dict["ant_ID"]
         self.r_ground = dict["r_ground"]
         self.r_core = dict["r_core"]
@@ -84,23 +76,15 @@ class RawData:
         self.energy = dict["energy"]
 
 class FluenceData:
-    """
+    """!
     A class for the reconstruction input attributes.
 
-    Attributes
-    ----------
-    r_shower:
-        The antenna positions in the shower plane
-    r_core_shower:
-        The shower core position in the shower plane
-    fluence_evB:
-        Fluence in the v x B direction
-    fluence_evvB:
-        Fluence in the v x v x B direction
-    fluence:
-        Total fluence
-    energy:
-        Monte Carlo energy
+    @param r_shower      The antenna positions in the shower plane.
+    @param r_core_shower The shower core position in the shower plane.
+    @param fluence_evB   Fluence in the v x B direction.
+    @param fluence_evvB  Fluence in the v x v x B direction.
+    @param fluence       Total fluence.
+    @param energy        Monte Carlo energy.
     """
 
     r_shower = None
@@ -111,6 +95,8 @@ class FluenceData:
     energy = None
 
     def __init__(self, dict):
+        """! FluenceData init function."""
+
         self.r_shower = dict["r_shower"]
         self.r_core_shower = dict["r_core_shower"]
         self.fluence_evB = dict["fluence_evB"]
@@ -119,35 +105,26 @@ class FluenceData:
         self.energy = dict["energy"]
 
 class Antenna:
-    """
+    """!
     A class for the antenna signal processing.
 
-    It has tools for the FFT, trace_recover and fluence evaluation.  
+    It includes tools for the FFT, trace_recover and fluence evaluation.  
 
     """
 
     @staticmethod
     def fft_filter(time_arr, trace, nu_low=50, nu_high=200):
-        """
+        """!
         Evaluates the FFT of the signal.
 
         A filter is applied with width given by instance.antenna.nu_high and instance.antenna.nu_low.
 
-        Parameters
-        ----------
-        traces:
-            The traces to be filtered
-        nu_low:
-            lower bound of the frequency band;
-        nu_high:
-            upper bound of the frequency band;
-        bool_plot: bool
-            toggles plots on and off;
+        @param time_arr   The time array of the trace.
+        @param trace      The trace to be filtered.
+        @param nu_low     Lower bound of the frequency filter.
+        @param nu_high    Upper bound of the frequency filter.
 
-        Returns
-        -------
-        traces_fft: list
-            The Fourier transform of the traces.
+        @return The Fourier transform of the trace.
 
         """
         # Number of sample points
@@ -174,22 +151,13 @@ class Antenna:
 
     @staticmethod
     def trace_recover(time_arr, trace_fft):
-        """
+        """!
         Reconstructs the trace after the FFT and filter.
 
-        Parameters
-        ----------
-        t:
-            The time array for the traces;
-        traces_fft:
-            The Fourier transform of the traces.
-        bool_plot: bool
-            toggles plots on and off;
+        @param time_arr  The time array for the trace.
+        @param trace_fft The Fourier transform of the trace.
 
-        Returns
-        -------
-        traces_rc: list
-            The reconstructed traces.
+        @return The reconstructed trace.
 
         """
         yy = ifft(trace_fft).real
@@ -200,24 +168,14 @@ class Antenna:
 
     @staticmethod
     def hilbert_envelope(trace_rec):
-        r"""
-        Evaluates the hilbert envelope of the recunstructed traces.
+        r"""!
+        Evaluates the hilbert envelope of the reconstructed traces.
 
-        .. math::
+        \f$ \mathcal{H}\{f(x)\}:=H(x)=\frac{1}{\pi}{\rm p.v.}\int_{-\infty}^\infty \frac{f(u)}{u-x}{\rm d}u \f$
 
-            \mathcal{H}\{f(x)\}:=H(x)=\frac{1}{\pi}{\rm p.v.}\int_{-\infty}^\infty \frac{f(u)}{u-x}{\rm d}u
-
-        Parameters
-        ----------
-        traces_rec:
-            The reconstructed traces.
-        bool_plot:
-            toggles plots on and off;
-
-        Returns
-        -------
-        hilbert: list
-            The hilbert envelopes [total, in evB direction, in evvB direction, in ev direction].
+        @param trace_rec The reconstructed trace.
+        
+        @return The hilbert envelope.
         """
         hilbert_env = hilbert(trace_rec)
 
@@ -225,31 +183,20 @@ class Antenna:
 
     @staticmethod
     def compute_fluence(time_arr, trace, nu_low = 50, nu_high = 200, SNR_thres=10):
-        r"""
+        r"""!
         Computes the fluence for a given antenna.
 
-        .. math::
-            f = \epsilon_0 c\left(\Delta t \sum_{t_1}^{t_2} \left| \vec{E}(t_i)\right|^2 - \Delta t \frac{t_2-t_1}{t_4-t_3} \sum_{t_3}^{t_4} \left| \vec{E}(t_i)\right|^2 \right)
+        \f$ f = \epsilon_0 c\left(\Delta t \sum_{t_1}^{t_2} \left| \vec{E}(t_i)\right|^2 - \Delta t \frac{t_2-t_1}{t_4-t_3} \sum_{t_3}^{t_4} \left| \vec{E}(t_i)\right|^2 \right) \f$
 
         It has a threshold for the SNR set by instance.SNR_thres.
 
-        Parameters
-        ----------
-        self: modERec.EnergyRec.Antenna
-            A class instance.
-        t:
-            The time array for the traces;
-        hilbert_env:
-            The hilbert envelopes;
-        SNR_thres:
-            The signal to noise ratio threshold;
-        bool_plot: bool
-            toggles plots on and off;
+        @param time_arr  The time array for the trace.
+        @param trace     The trace.
+        @param nu_low    Lower bound of the frequency filter.
+        @param nu_high   Upper bound of the frequency filter.
+        @param SNR_thres Signal to noise ratio threshold.
 
-
-        Notes
-        -----
-        Fills self.fluence, self.fluence_geo, self.fluence_ce, self.fluence_evB and self.fluence_evvB
+        @return The fluence and the signal to noise ratio.
         """
 
         trace_fft = Antenna.fft_filter(time_arr, trace, nu_low, nu_high)
@@ -315,6 +262,15 @@ class Antenna:
 
     @staticmethod
     def compute_f_geo_ce(fluence_evB, fluence_evvB , r_plane):
+        """!
+        Computes the geomagnetic and charge excess fluences for a given antenna.
+
+        @param fluence_evB  The fluence along the v x B direction.
+        @param fluence_evvB The fluence along the v x v x B direction.
+        @param r_plane The antenna position on the shower plane.
+
+        @return Geomagnetic and charge excess fluences.
+        """
         cosPhi = np.dot(r_plane, np.array([1, 0])) / np.linalg.norm(r_plane)
         sinPhi = np.sqrt(1 - cosPhi * cosPhi)
 
@@ -333,38 +289,21 @@ class Antenna:
         return fluence_geo, fluence_ce
 
 class EnergyRec:
-    """
-    A class for the energy reconstruction.
+    """!
+    The mais class for the energy reconstruction.
 
-    It has the inner classes: AERA, Antenna and Shower.
-
-    Attributes
-    ----------
-
-    bool_plot: bool
-        Toggles the plots on and off (default: false).
-    bool_el: bool
-        Toggles the early late correction on and off (default: true).
-    nu_low:
-        The lower frequency of the signal filter in MHz (default: 50).
-    nu_high:
-        The upper frequency of the signal filter in MHz (default: 200).
-    SNR_thres:
-        The signal to noise ratio threshold (default: 10).
-    thres_low:
-        A initial lower threshold for selecting antennas in V/m (default: 0.1e-6).
-    thres_high:
-        A initial upper threshold for selecting antennas in V/m (default: 1).
-    f_thres:
-        A final lower threshold for selecting antennas in eV/m^2 (default: 0.01).
-    raw_data:
-        An instance of the RawData class
-    fluence_data:
-        An instance of the FluenceData class
-    bestfit:
-        The bestfit values of the parameters (default: None).
-    printLevel: int
-        A print level variable (default: 0).
+    @param bool_plot    Toggles the plots on and off (default: false).
+    @param bool_el      Toggles the early late correction on and off (default: true).
+    @param nu_low       The lower frequency of the signal filter in MHz (default: 50).
+    @param nu_high      The upper frequency of the signal filter in MHz (default: 200).
+    @param SNR_thres    The signal to noise ratio threshold (default: 10).
+    @param thres_low    An initial lower threshold for selecting antennas in V/m (default: 0.1e-6).
+    @param thres_high   An initial upper threshold for selecting antennas in V/m (default: 1).
+    @param f_thres      A final lower threshold for selecting antennas in eV/m^2 (default: 0.01).
+    @param raw_data     An instance of the RawData class.
+    @param fluence_data An instance of the FluenceData class
+    @param bestfit      The bestfit values of the parameters (default: None).
+    @param printLevel   A print level variable (default: 0).
     """
 
     ## Toggles the plots on and off.
@@ -393,15 +332,11 @@ class EnergyRec:
     printLevel = 0
 
     def __init__(self, my_input):
-        """
+        """!
         The default init function for the class EnergyRec.
 
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-        simulation:
-            The path to the simulation directory or file.
+        @param self     A modERec.EnergyRec class instance.
+        @param my_input Either a FluenceData or RawData object.
         """
 
         if(isinstance(my_input, FluenceData)):
@@ -477,14 +412,10 @@ class EnergyRec:
             print("\n")
 
     def simulation_inspect(self):
-        """
-        Outputs theta, phi, Energy and the core position.
+        """!
+        Outputs The FluenceData and RawData if available.
 
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-
+        @param self A modERec.EnergyRec class instance.
         """
         if self.raw_data is not None:
             print("This is the raw input:")
@@ -497,20 +428,13 @@ class EnergyRec:
 
 
     def Eval_par_fluences(self, par):
-        """
+        """!
         Evaluates the fluence par for a give set of parameters.
 
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-        par: array
-            The parameters of the :math:`a_{ratio}` parametrization.
+        @param self A modERec.EnergyRec class instance.
+        @param par  The parameters array of the \f$a_{ratio}\f$ parametrization.
 
-        Returns
-        -------
-        fluence_par: array
-            Parametrized fluence array.
+        @return The parametrized fluence array.
         """
 
         fluence_arr = np.array([ant.fluence for ant in antenna_list])
@@ -538,49 +462,16 @@ class EnergyRec:
 
         return fluence_par
 
-    
-    def plot_antpos(self):
-        """
-        Plots the fluence and antenna positions in the site plane.
-
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
-
-        """
-
-        sel = np.where(self.fluence_data["fluence"] > 0)[0]
-
-        fig = plt.figure(figsize=(10, 7))
-        ax = plt.gca()
-
-        plt.scatter(
-            self.fluence_data["r_shower"][:, 0][sel],
-            self.fluence_data["r_shower"][:, 1][sel],
-            c=fluence_arr[sel],
-            cmap="viridis"
-        )
-
-        plt.xlabel("x (in m)")
-        plt.ylabel("y (in m)")
-        plt.colorbar().ax.set_ylabel(r"Energy fluence (eV/m$^2$)")
-        plt.show()
-
     @staticmethod
     def early_late(r_shower, r_core_shower, d_xmax):
-        """
+        """!
         Evaluates the early-late correction factor.
 
-        Parameters
-        ----------
-        self: modERec.EnergyRec
-            A class instance.
+        @param r_shower      The antenna position on the shower plane.
+        @param r_core_shower The shower core position on the shower plane.
+        @param d_xmax        The distance to the shower maximum.
 
-        Notes
-        -----
-        Fills self.antenna.wEarlyLate for all the antennas and self.shower.d_Xmax.
-
+        @return The early-late correction factor.
         """
 
         R_0 = d_xmax
@@ -595,15 +486,19 @@ class EnergyRec:
 
 
 class SymFit:
-    """
+    """!
     A class with the symmetric signal distribution specific methods.
 
+    @param g_a_par     The initial guess for the a_ratio fit.
+    @param g_rho_mean  The mean air density at shower maximum.
+    @param g_ldf_par   The initial guess for the ldf par fit.
+    @param g_joint_par The initial guess for the joint fit.
     """
 
     ## The initial guess for the a_ratio fit.
     g_a_par = [0.373, 762.6, 0.149, 0.189]
 
-    ## The mean air density at shower maximum
+    ## The mean air density at shower maximum.
     g_rho_mean = 0.327
 
     ## The initial guess for the ldf par fit.
@@ -614,24 +509,15 @@ class SymFit:
 
     @staticmethod
     def a_ratio(r, d_Xmax, par, rho_max):
-        """
+        """!
         Evaluates the charge-excess to geomagnetic ratio.
 
-        Parameters
-        ----------
-        r:
-            Antenna position in the shower plane;
-        d_Xmax:
-            Distance from core to shower maximum in meters;
-        par:
-            The parameters;
-        rho_max:
-            Air density at shower maximum.
+        @param r       The antenna distance in the shower plane.
+        @param d_Xmax  Distance from core to shower maximum in meters.
+        @param par     The parameter model array.
+        @param rho_max Air density at shower maximum.
 
-        Returns
-        -------
-        a_ratio: double
-            The charge-excess to geomagnetic ratio.
+        @return The charge-excess to geomagnetic ratio.
         """
         rho_mean = SymFit.g_rho_mean
         return (
@@ -643,30 +529,18 @@ class SymFit:
 
     @staticmethod
     def f_par_geo(f_vB, phi, alpha, r, d_Xmax, par, rho_max):
-        """
+        """!
         Evaluates the parametrized geomagnetic fluence.
 
-        Parameters
-        ----------
-        f_vB:
-            Fluence in the v times B direction;
-        phi:
-            The angle between the antenna position and the v times B direciton;
-        alpha:
-            The geomagnetic angle.
-        r:
-            Antenna position in the shower plane;
-        d_Xmax:
-            Distance from core to shower maximum in meters;
-        par:
-            The parameters;
-        rho_max:
-            Air density at shower maximum.
+        @param f_vB    Fluence in the v times B direction.
+        @param phi     The angle between the antenna position and the v x B direction.
+        @param alpha   The geomagnetic angle.
+        @param r       Antenna distance in the shower plane.
+        @param d_Xmax  Distance from core to shower maximum in meters.
+        @param par     The parameter model array.
+        @param rho_max Air density at the shower maximum.
 
-        Returns
-        -------
-        f_par_geo: double
-            The parametrized geomagnetic fluence.
+        @return The parametrized geomagnetic fluence.
         """
         sqrta = np.sqrt(SymFit.a_ratio(r, d_Xmax, par, rho_max))
         cos_sin_ratio = np.cos(phi) / np.abs(np.sin(alpha))
@@ -674,20 +548,14 @@ class SymFit:
 
     @staticmethod
     def rho(r, e_vec, site_height=0):
-        """
+        """!
         Evaluates the air density at a given position.
 
-        Parameters
-        ----------
-        r:
-            The distance to the position in meters;
-        e_vec:
-            The direction of the position (unitary vector);
-
-        Returns
-        -------
-        rho: double
-            The air density.
+        @param r           The distance to the position in meters.
+        @param  e_vec      The direction of the position (unitary vector).
+        @param site_height The height of the site w.r.t. sea level.
+        
+        @return The air density.
         """
 
         height = np.dot(r * e_vec, np.array([0, 0, 1])) / 1000  # from m to km
@@ -698,30 +566,18 @@ class SymFit:
 
     @staticmethod
     def a_ratio_chi2(par, fluence_geo, fluence_ce, alpha, r, d_Xmax, rho_Xmax):
-        """
+        """!
         Chi2 for the a_ratio fit.
 
-        Parameters
-        ----------
-        par:
-            The parameters;
-        fluence_geo:
-            An array with the geomagnetic fluences;
-        fluence_ce:
-            An array with the charge excess fluences;
-        alpha:
-            An array with the geomagnetic angles;
-        r:
-            An array with the antenna distances to the core in the shower plane;
-        d_Xmax:
-            The distance from the core to the Xmax;
-        rho_Xmax:
-            The atmospheric density in the Xmax.
+        @param par         The parameter model array.
+        @param fluence_geo An array with the geomagnetic fluences.
+        @param fluence_ce  An array with the charge excess fluences.
+        @param alpha       An array with the geomagnetic angles.
+        @param r           An array with the antenna distances to the core in the shower plane.
+        @param d_Xmax      An array with the distance from the core to the Xmax.
+        @param rho_Xmax    An array with the atmospheric density in the Xmax.
 
-        Returns
-        -------
-        Chi2: double
-            The :math:`\chi^2` value.
+        @return The \f$\chi^2\f$ value.
         """
         sel = np.where(fluence_geo > 0)[0]
 
@@ -737,28 +593,17 @@ class SymFit:
 
     @staticmethod
     def a_ratio_fit(fluence_geo, fluence_ce, alpha, r, d_Xmax, rho_max):
-        """
+        """!
         Fits the a_ratio.
 
-        Parameters
-        ----------
-        fluence_geo:
-            An array with the geomagnetic fluences;
-        fluence_ce:
-            An array with the charge excess fluences;
-        alpha:
-            An array with the geomagnetic angles;
-        r:
-            An array with the antenna distances to the core in the shower plane;
-        d_Xmax:
-            An array with the distances to shower maximum;
-        rho_max:
-            An array with the densities at shower maximum.
+        @param fluence_geo An array with the geomagnetic fluences;
+        @param fluence_ce  An array with the charge excess fluences;
+        @param alpha       An array with the geomagnetic angles;
+        @param r           An array with the antenna distances to the core in the shower plane;
+        @param d_Xmax      An array with the distances to shower maximum;
+        @param rho_max     An array with the densities at shower maximum.
 
-        Returns
-        -------
-        bestfit: array
-            The bestfit parameters array.
+        @return The best-fit parameter array.
         """
         par = SymFit.g_a_par
         res = sp.optimize.minimize(
@@ -771,23 +616,15 @@ class SymFit:
 
     @staticmethod
     def SymLDF(par, r):
-        r"""
+        r"""!
         The symmetric ldf to be fit to the fluence_par data.
 
-        .. math::
-            f_{ABCD}(r) = A.exp\left[-B.r-C.r^2-D.r^3\right]
+        \f$ f_{ABCD}(r) = A.exp\left[-B.r-C.r^2-D.r^3\right] \f$
 
-        Parameters
-        ----------
-        par:
-            The parameter array;
-        r:
-            The distance to the axis.
+        @param par The parameter model array.
+        @param r   The distance to the shower axis.
 
-        Returns
-        -------
-        LDF: double
-            The ldf value at distance r.
+        @return The ldf value at distance r.
         """
         A = par[0]
         B = par[1]
@@ -799,23 +636,15 @@ class SymFit:
     
     @staticmethod
     def SymLDF_2022(par, r):
-        r"""
+        r"""!
         The symmetric ldf to be fit to the fluence_par data.
 
-        .. math::
-            f_{GS}(r) = f_0\left[\exp\left(-\left(\frac{r-r_0^{fit}}{\sigma}\right)^{p(r)}\right)+\frac{a_{rel}}{1+\exp(s.[r/r_0^{fit}-r_{02}]))}\right]
+        \f$ f_{GS}(r) = f_0\left[\exp\left(-\left(\frac{r-r_0^{fit}}{\sigma}\right)^{p(r)}\right)+\frac{a_{rel}}{1+\exp(s.[r/r_0^{fit}-r_{02}]))}\right] \f$
 
-        Parameters
-        ----------
-        par:
-            The parameter array;
-        r:
-            The distance to the axis.
+        @param par The parameter model array.
+        @param r   The distance to the shower axis.
 
-        Returns
-        -------
-        LDF: double
-            The ldf value at distance r.
+        @return The ldf value at distance r.
         """
         f_0 = par[0]
         r_0 = par[1]
@@ -832,6 +661,15 @@ class SymFit:
 
     @staticmethod
     def ressonance(pars, x):
+        """!
+        An alternative LDF inspired on the resonance amplitude expression.
+        
+        @param pars The parameter model array.
+        @param x    The distance to the shower axis.
+
+        @return The ldf value at distance r.
+        """
+
         A = pars[0]
         omega_0 = pars[1]
         gamma = pars[2]
@@ -847,22 +685,14 @@ class SymFit:
 
     @staticmethod
     def LDF_chi2(par, r, fluence_par):
-        """
+        """!
         The LDF chi2.
 
-        Parameters
-        ----------
-        par:
-            The parameter array;
-        r:
-            The distance to the axis;
-        fluence_par:
-            The array with the symmetrized signal.
+        @param par         The parameter model array.
+        @param r           The distance to the shower axis.
+        @param fluence_par The array with the symmetrized signal.
 
-        Returns
-        -------
-        Chi2: double
-            The :math:`\chi^2` value.
+        @return The \f$\chi^2\f$ value.
         """
 
         # Constraints from parameter estimation
@@ -893,20 +723,13 @@ class SymFit:
 
     @staticmethod
     def SymLDF_fit(r, fluence_par):
-        """
+        """!
         Fits the symmetric LDF to the fluence_par data.
 
-        Parameters
-        ----------
-        r:
-            The distance to the axis;
-        fluence_par:
-            The array with the symmetrized signal.
+        @param r           The distance to the shower axis.
+        @param fluence_par The array with the symmetrized signal.
 
-        Returns
-        -------
-        bestfit: array
-            The bestfit parameters array.
+        @return The best-fit parameter array.
         """
 
         if SymFit.g_ldf_par is None:
@@ -955,24 +778,15 @@ class SymFit:
 
     @staticmethod
     def Sradio_geo(par, ldf_par, alpha, rho_Xmax):
-        """
+        """!
         The radiation energy corrected for the scaling of the emission strength with the geomagnetic angle and the atmospheric density.
 
-        Parameters
-        ----------
-        par:
-            The free parameters of the correction;
-        ldf_par:
-            The parameters to be used in the symmetric LDF;
-        alpha:
-            The geomagnetic angle;
-        rho_Xmax:
-            The density in the X_max.
+        @param par      The free parameters of the correction.
+        @param ldf_par  The parameters to be used in the symmetric LDF.
+        @param alpha    The geomagnetic angle.
+        @param rho_Xmax The air density at the X_max.
 
-        Returns
-        -------
-        S_radio_geo: double
-            The corrected radiation energy
+        @return The corrected radiation energy
         """
         E_rad = (
             2
@@ -993,20 +807,13 @@ class SymFit:
 
     @staticmethod
     def Sradio_mod(par, E):
-        """
+        """!
         The model for the relation between S_radio and the energy.
 
-        Parameters
-        ----------
-        par:
-            The free parameters of the model;
-        E:
-            The energy of the event in EeV.
+        @param par The parameter model array.
+        @param E   The energy of the event in EeV.
 
-        Returns
-        ------
-        S_radio_mod: double
-            The model :math:`S_{radio}`.
+        @return The model \f$S_{radio}\f$.
         """
 
         S_19 = par[0]
@@ -1016,26 +823,16 @@ class SymFit:
 
     @staticmethod
     def Chi2_joint_S(par, ldf_par_arr, alpha_arr, rho_Xmax_arr, E_arr):
-        """
+        """!
         The chi2 for the joint fit os Sradio_geo and Sradio_mod.
 
-        Parameters
-        ----------
-        par:
-            The full parameter array;
-        ldf_par_arr:
-            The array with the ldf_par for each simulation;
-        alpha_arr:
-            The array with the geomagnetic angles of each simulation;
-        rho_Xmax:
-            The array with the density at Xmax of each simulation;
-        E_arr:
-            The array with the energies of each simulation in GeV;
+        @param par         The full parameter model array.
+        @param ldf_par_arr The array with the ldf_par for each simulation;
+        @param alpha_arr   The array with the geomagnetic angles of each simulation;
+        @param rho_Xmax    The array with the density at Xmax of each simulation;
+        @param E_arr       The array with the energies of each simulation in GeV;
 
-        Returns
-        -------
-        Chi2: double
-            The :math:`\chi^2` value.
+        @return The \f$\chi^2\f$ value.
         """
 
         Chi2 = 0
@@ -1053,25 +850,17 @@ class SymFit:
 
     @staticmethod
     def joint_S_fit(ldf_par_arr, alpha_arr, rho_Xmax_arr, E_arr):
-        """
+        """!
         Performs the joint fit of the S_radio.
 
-        Parameters
-        ----------
-        ldf_par_arr:
-            The array with the ldf_par for each simulation;
-        alpha_arr:
-            The array with the geomagnetic angles of each simulation;
-        rho_Xmax:
-            The array with the density at Xmax of each simulation;
-        E_arr:
-            The array with the energies of each simulation in GeV;
+        @param ldf_par_arr The array with the ldf_par for each simulation;
+        @param alpha_arr   The array with the geomagnetic angles of each simulation;
+        @param rho_Xmax    The array with the air density at Xmax of each simulation;
+        @param E_arr       The array with the energies of each simulation in GeV;
 
-        Returns
-        ------
-        bestfit: array
-            The bestfit array.
+        @return The best-fit parameter array.
         """
+
         if SymFit.g_ldf_par is None:
             p0 = 0.394
             p1 = -2.370  # m^3/kg
