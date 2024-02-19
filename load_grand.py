@@ -220,7 +220,7 @@ def _from_dir(cls, path: Path) -> ZhairesShower:
         def parse_geomagnet_intensity(string: str):  # -> u.Quantity:
             return float(string.split()[0]) * 1e-3  # uT --> nT
 
-        def parse_geomagnet_angles(string: str) #-> CartesianRepresentation:
+        def parse_geomagnet_angles(string: str): #-> CartesianRepresentation:
             intensity = inp["geomagnet"]
             inclination, _, _, declination, _ = string.split()
             theta = 90 + float(inclination)  # deg
